@@ -1,147 +1,170 @@
-# 哔哩哔哩仿站（Vue 3 + Spring Boot 3）
+# 哔哩哔哩仿站 · bilibili-clone
 
-一个模仿哔哩哔哩（bilibili）页面结构和交互方式的完整前后端分离项目。
-**下载下来就能跑，不需要装数据库**，也不需要你写任何代码。
+![Vue](https://img.shields.io/badge/Vue-3.5-42b883?logo=vue.js&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white)
+![Element Plus](https://img.shields.io/badge/Element%20Plus-2.x-409eff?logo=element&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6db33f?logo=springboot&logoColor=white)
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
+<!-- 上传到 GitHub 之后，把下面这行的 ALIUERNA 换成你的 GitHub 用户名，CI 徽章就会亮起来 -->
+![CI](https://github.com/ALIUERNA/bilibili-clone/actions/workflows/ci.yml/badge.svg)
 
-> ⚠️ 说明：这是学习用的仿站项目，页面结构参考哔哩哔哩，但和哔哩哔哩官方没有任何关系。
-> 项目里的 UP 主、视频、弹幕、评论全部是程序生成的假数据，不含任何真实视频内容。
+一个**照着哔哩哔哩做的完整前后端分离网站**：首页推荐流、弹幕播放器、一键三连、排行榜、追番、个人空间、动态、搜索，
+还带上传头像 / 改昵称 / 等级经验 / 每日签到等互动功能。
+
+- 🚀 **下载下来就能跑**，不需要装数据库，Windows 下双击脚本即可
+- 🎨 不依赖任何外部图片，封面是程序生成的渐变图，断网也能看
+- 🧩 前端用 Element Plus 做组件能力，样式全部自己写，最大限度贴近 B 站观感
+
+> ⚠️ 声明：这是**学习用的仿站项目**，页面结构与交互参考哔哩哔哩，与哔哩哔哩官方无任何关系。
+> 站内所有 UP 主、视频、弹幕、评论均为程序生成的假数据，**不包含任何真实视频内容**。
 
 ---
 
-## 一、怎么运行（最快的方式）
+## 一、效果预览
 
-1. 双击 **`启动网站.bat`**
-2. 等 8 秒左右，浏览器会自动打开 <http://localhost:8080>
-3. 想关掉网站，直接关掉那个黑色命令行窗口就行
+| 首页（推荐流 + 分区 + 轮播） | 播放页（弹幕 + 一键三连 + 评论） |
+| --- | --- |
+| ![首页](docs/images/home.png) | ![播放页](docs/images/video-playing.png) |
 
-如果提示找不到 Java 17，看下面的「常见问题」。
+| 排行榜 | 番剧（追番） | 个人空间 |
+| --- | --- | --- |
+| ![排行榜](docs/images/ranking.png) | ![番剧](docs/images/bangumi.png) | ![个人空间](docs/images/space.png) |
 
-### 其他两个脚本
+---
+
+## 二、快速开始
+
+### 方式 1：Windows 一键脚本（推荐，最省事）
 
 | 脚本 | 作用 |
 | --- | --- |
-| `启动网站.bat` | 启动网站（日常就看这个），会自动打开浏览器 |
-| `开发模式-前端.bat` | 前端开发模式，改代码自动刷新，端口 5173（要先启动后端） |
-| `重新构建.bat` | 修改代码后重新编译前端 + 后端，生成新的 jar（会自动先停掉正在运行的服务） |
+| **`启动网站.bat`** | 启动网站，自动打开浏览器 http://localhost:8080 |
+| `重新构建.bat` | 改了代码后重新打包（会自动先停掉旧服务） |
+| `开发模式-前端.bat` | 前端开发模式，改代码热更新，端口 5173 |
+| `上传到GitHub.bat` | 把项目推送到你自己的 GitHub 仓库 |
 
-> 小知识：这三个 .bat 是用 GBK 编码保存的。因为 Windows 的 cmd 默认代码页是 936（中文），
-> 如果存成 UTF-8，里面的中文会变成乱码，甚至导致脚本直接跑不起来。
-> 它们的「源文件」放在 `tools/bat-src/*.bat.txt`（UTF-8 编码），改完执行
-> `python tools/bat-src/build_bats.py` 就会重新生成根目录下的 .bat。
+只要电脑上有 **JDK 17+**，双击 `启动网站.bat` 就能跑（脚本会自动找到 JDK；改代码才需要 Node.js 和 Maven）。
+
+### 方式 2：Docker（一行命令）
+
+```bash
+docker compose up -d
+# 打开 http://localhost:8080
+```
+
+镜像采用多阶段构建：Node 打前端 → Maven 打后端 → 只留一个 JRE 运行时，用户上传的头像挂在 `bili-uploads` 数据卷里。
+
+### 方式 3：手动跑
+
+```bash
+# 前端
+cd frontend
+npm install --include=dev
+npm run build
+
+# 把前端产物塞进后端静态目录
+cp -r dist/* ../backend/src/main/resources/static/
+
+# 后端
+cd ../backend
+mvn package -DskipTests
+java -jar target/bili-web.jar
+```
 
 ---
 
-## 二、技术栈
+## 三、功能清单
 
-**前端**
+### 首页
+- 18 个分区导航（推荐 / 热门 / 动画 / 番剧 / 国创 / 音乐 / 舞蹈 / 游戏 / 知识 / 科技 …），切换即时换内容
+- Element Plus 轮播图 + 右侧「大家都在搜」热搜榜
+- 视频卡片网格：16:9 封面、时长角标、悬停出现「xx播放 xx弹幕」蒙层与播放按钮
+- 卡片会跟着鼠标轻轻倾斜（VueUse `useMouseInElement`），滚动时依次淡入
+- 分页「加载更多」
 
-- Vue 3（组合式 API，`<script setup>`）
-- Vite 6（打包 / 开发服务器）
-- Vue Router 4（页面路由，hash 模式）
-- Pinia（登录状态管理）
-- Axios（接口请求封装）
-- 原生 CSS（没有用 UI 框架，样式全部手写，方便你改）
+### 播放页（核心）
+- **弹幕引擎**：按时间轴滚动，支持顶部/底部固定弹幕；暂停、拖动进度、倍速后都能重新对齐
+- 弹幕设置面板：不透明度 / 字号 / 速度 / 轨道数 / 显示区域
+- 发弹幕：选颜色、即时上屏，自己发的弹幕带粉色描边
+- 自定义播放器：进度条悬停预览、音量、0.5~2x 倍速、清晰度切换、全屏（VueUse `useFullscreen`）
+- 键盘快捷键：`空格` 播放暂停、`←/→` 快退快进 5 秒、`F` 全屏
+- **一键三连**：成功时炸开一圈小图标；点赞/投币/收藏/分享都会涨经验并飘出「+N 经验」
+- UP 主卡片、关注、简介、标签（点击跳搜索）、相关推荐
+- 评论区：排序、发表评论、点赞、楼中楼展开、自己发的评论带头像
 
-**后端**
+### 用户系统
+- 扫码风格登录弹窗（Element Plus Dialog），未登录做互动会自动弹出来
+- **上传头像**：点击 / 拖拽都可以（Element Plus Upload），选完立即上传并马上生效，也能一键换回表情头像
+- **修改昵称、个性签名**，带实时预览和字数统计
+- **鼠标悬停头像弹出资料卡**：放大头像 + 昵称 + 等级 + 经验进度条 + 勋章 + 关注/粉丝/获赞/硬币 + 签到按钮
+- **等级与经验**：互动就会涨经验（点赞 +5、投币 +10、收藏 +5、关注 +5、发弹幕 +3、发评论 +5、分享 +2），经验满了自动升级并放升级特效
+- **每日签到**：+10 经验、+5 硬币，一天只能签到一次
+- 资料落盘保存在 `uploads/profile.json`，刷新页面、重启服务都不会丢
 
-- Java 17 + Spring Boot 3.3.5
-- Spring MVC（REST 接口）
-- 纯内存模拟数据（`DataStore` 里用代码生成 80 条稿件、1.6 万条弹幕、上千条评论）
-- Maven 打包成一个可执行 jar
+### 其他页面
+- **排行榜**：综合 / 最多点赞 / 投币 / 收藏 / 弹幕 五个榜单 + 分区筛选，前三名金银铜配色
+- **番剧**：地区 / 状态筛选、追番、评分
+- **个人空间**：渐变横幅、粉丝与播放统计、主页 / 动态 / 投稿三个标签页
+- **动态**：动态流、点赞、转发
+- **搜索**：顶栏联想词、相关用户、结果网格、热搜词
 
 ---
 
-## 三、目录结构
+## 四、技术栈
+
+### 前端
+| 技术 | 用途 |
+| --- | --- |
+| **Vue 3**（`<script setup>`） | 组件开发 |
+| **Vite 6** | 开发服务器 + 打包 |
+| **Vue Router 4** | 路由（hash 模式，刷新不会 404） |
+| **Pinia** | 用户状态、等级经验、飘字动画队列 |
+| **Axios** | 接口封装与统一错误处理 |
+| **Element Plus**（按需引入） | Dialog / Popover / Upload / Progress / Skeleton / Carousel / Empty / Backtop / Message / Tooltip |
+| **VueUse** | `useMouseInElement`（卡片倾斜）、`useFullscreen`（全屏）、`useEventListener`（快捷键）、`useDebounceFn`（搜索防抖） |
+| 原生 CSS | 全站样式手写，用 CSS 变量维护 B 站配色（`--bili-pink: #fb7299`） |
+
+> Element Plus 只用来补齐组件能力，**没有破坏 B 站观感**：弹窗、上传、轮播都被覆盖成 B 站风格。
+> 组件与样式均按需引入（`unplugin-vue-components`），el-table / el-date-picker 这类没用到的组件不会进包。
+
+### 后端
+| 技术 | 说明 |
+| --- | --- |
+| **Java 17 + Spring Boot 3.3** | REST 接口 |
+| **内存模拟数据** | `DataStore` 启动时生成 16 个分区 / 80 条稿件 / 1.6 万条弹幕 / 上千条评论 / 12 部番剧 |
+| **`uploads/`** | 用户资料与头像图片落盘（无需数据库） |
+| **Maven** | 打包成一个可执行 jar |
+
+---
+
+## 五、目录结构
 
 ```
 bilibili-clone/
-├── 启动网站.bat              ← 双击这个就能跑
-├── 重新构建.bat
-├── 开发模式-前端.bat
-├── backend/                  ← Spring Boot 后端
-│   ├── pom.xml
+├── 启动网站.bat / 重新构建.bat / 开发模式-前端.bat / 上传到GitHub.bat
+├── Dockerfile / docker-compose.yml
+├── .github/workflows/ci.yml          GitHub Actions 持续集成
+├── backend/                          Spring Boot 后端
 │   └── src/main/java/com/bili/demo/
-│       ├── BiliApplication.java     启动类
-│       ├── config/WebConfig.java    跨域配置
-│       ├── model/                   实体类（视频、弹幕、评论、UP主、番剧…）
-│       ├── data/DataStore.java      ★ 所有模拟数据都在这里
-│       └── controller/              接口层
-│           ├── HomeController.java      首页 / 列表 / 排行榜
-│           ├── VideoController.java     视频详情 / 弹幕 / 评论 / 三连
-│           ├── BangumiController.java   番剧 / 追番
-│           ├── SpaceController.java     个人空间 / 动态 / 搜索
-│           └── UserController.java      登录 / 退出
-└── frontend/                 ← Vue 3 前端
-    ├── vite.config.js
-    └── src/
-        ├── api/index.js             接口封装
-        ├── router/index.js          路由表
-        ├── stores/user.js           登录状态
-        ├── utils/format.js          播放量、时长的格式化
-        ├── styles/global.css        全局样式 + B站配色变量
-        ├── components/
-        │   ├── TopBar.vue           ★ 顶部导航栏（搜索、头像、投稿）
-        │   ├── PlayerView.vue       ★ 播放器（进度条、倍速、全屏、弹幕设置）
-        │   ├── DanmakuLayer.vue     ★ 弹幕引擎
-        │   ├── VideoCard.vue        视频卡片（网格 / 横向 / 排行榜三种样式）
-        │   ├── CommentItem.vue      评论（含楼中楼）
-        │   ├── LoginModal.vue       登录弹窗（扫码样式）
-        │   └── AppFooter.vue        页脚
-        └── views/
-            ├── HomeView.vue         首页（轮播 + 分区 + 推荐流）
-            ├── VideoView.vue        播放页（播放器 + 三连 + 评论 + 相关推荐）
-            ├── RankingView.vue      排行榜
-            ├── BangumiView.vue      番剧（追番）
-            ├── SpaceView.vue        个人空间（主页 / 动态 / 投稿）
-            ├── DynamicView.vue      动态流
-            └── SearchView.vue       搜索结果页
+│       ├── controller/               5 个控制器，19 个接口
+│       ├── data/DataStore.java       ★ 视频/弹幕/评论等模拟数据
+│       ├── data/UserStore.java       ★ 用户资料、等级经验、签到、头像落盘
+│       └── model/                    实体类
+├── frontend/                         Vue 3 前端
+│   ├── eslint.config.js / .prettierrc.json
+│   └── src/
+│       ├── api/ router/ stores/ utils/ directives/ styles/
+│       ├── components/               TopBar、PlayerView、DanmakuLayer、VideoCard、
+│       │                             UserAvatar、UserHoverCard、ProfileModal、LoginModal…
+│       └── views/                    首页/播放页/排行榜/番剧/空间/动态/搜索
+├── tools/                            自动化脚本（验收测试、停止服务、bat 源码）
+└── docs/images/                      README 截图
 ```
 
 ---
 
-## 四、做了哪些功能
-
-**顶部导航**
-
-- B 站风格粉色 logo、分区导航、搜索框（带输入联想下拉）、大会员、消息/历史/创作中心、头像下拉、粉色「投稿」按钮
-- 点击「消息 / 历史」等未实现的功能会有一个友好的提示，不会白屏
-
-**首页**
-
-- 分区导航条：推荐 / 热门 / 动画 / 番剧 / 国创 / 音乐 / 舞蹈 / 游戏 / 知识 / 科技……共 18 个分区，切换会重新拉数据
-- 轮播图（4.5 秒自动切换，可点圆点）、右侧「大家都在搜」热搜榜
-- 视频卡片网格：16:9 封面、时长角标、鼠标悬停出现「xx播放 xx弹幕」蒙层、两行标题省略、UP 主
-- 「加载更多」分页
-
-**播放页（重点）**
-
-- 播放器：播放/暂停、可拖动进度条（悬停显示时间预览）、音量、倍速（0.5~2x）、清晰度切换、全屏
-- **弹幕引擎**：弹幕按时间轴滚动，支持顶部/底部固定弹幕，支持暂停、拖动进度后重新对齐
-- 弹幕开关、弹幕设置面板（不透明度 / 字号 / 速度 / 轨道数 / 显示区域）
-- 发弹幕：输入内容 + 选颜色，发送后立刻出现在画面上（自己发的弹幕有粉色描边）
-- 一键三连（点赞 / 投币 / 收藏）、分享
-- UP 主卡片 + 关注、视频简介、标签（点击可跳搜索）
-- 评论区：排序、发表评论、点赞、楼中楼展开
-- 右侧相关推荐（同分区优先）
-- 键盘快捷键：`空格` 播放暂停、`←/→` 快退快进 5 秒、`F` 全屏
-
-**其他页面**
-
-- 排行榜：综合 / 最多点赞 / 投币 / 收藏 / 弹幕 五个榜 + 分区筛选，前三名金银铜配色
-- 番剧：地区 / 状态筛选、追番按钮、评分
-- 个人空间：渐变横幅、头像、粉丝/播放统计、主页 / 动态 / 投稿三个标签页
-- 动态流：点赞、瀑布式卡片
-- 搜索：相关用户 + 视频结果 + 热搜词
-
-**登录**
-
-- 点「点赞 / 评论 / 发弹幕 / 关注」如果没登录，会自动弹出登录框
-- 登录框模仿扫码登录界面（二维码是画出来的），点「一键登录」即可登录
-- 登录状态存 localStorage，刷新不掉线
-
----
-
-## 五、接口一览
+## 六、接口一览
 
 | 方法 | 地址 | 说明 |
 | --- | --- | --- |
@@ -150,11 +173,9 @@ bilibili-clone/
 | GET | `/api/videos/{id}` | 视频详情（含弹幕） |
 | GET | `/api/videos/{id}/related` | 相关推荐 |
 | POST | `/api/videos/{id}/view` | 播放量 +1 |
-| POST | `/api/videos/{id}/action?type=like` | 点赞 / coin / fav / share / follow |
-| GET | `/api/videos/{id}/danmaku` | 拉弹幕 |
-| POST | `/api/videos/{id}/danmaku` | 发弹幕 |
-| GET | `/api/videos/{id}/comments` | 评论列表 |
-| POST | `/api/videos/{id}/comments` | 发评论 |
+| POST | `/api/videos/{id}/action?type=like` | 点赞/投币/收藏/分享/关注（会涨经验） |
+| GET / POST | `/api/videos/{id}/danmaku` | 拉弹幕 / 发弹幕 |
+| GET / POST | `/api/videos/{id}/comments` | 评论列表 / 发评论 |
 | GET | `/api/rankings?type=all&limit=100` | 排行榜 |
 | GET | `/api/bangumi?area=国产` | 番剧列表 |
 | POST | `/api/bangumi/{id}/follow` | 追番 |
@@ -163,78 +184,104 @@ bilibili-clone/
 | GET | `/api/search?keyword=美食` | 搜索 |
 | GET | `/api/search/suggest?keyword=美` | 搜索联想 |
 | POST | `/api/user/login` | 一键登录（演示） |
-| GET | `/api/user/me` | 当前用户 |
+| GET | `/api/user/me` | 当前用户 + 经验进度 |
+| POST | `/api/user/profile` | 修改昵称 / 签名 |
+| POST | `/api/user/avatar` | 上传头像（multipart，5MB 以内） |
+| DELETE | `/api/user/avatar` | 换回表情头像 |
+| GET | `/api/files/avatar/{name}` | 读取头像图片 |
+| POST | `/api/user/checkin` | 每日签到 |
 
 ---
 
-## 六、想改成你自己的数据？
+## 七、工程化与测试
 
-打开 `backend/src/main/java/com/bili/demo/data/DataStore.java`，最上面几个数组就是全部数据源：
+```bash
+cd frontend
+npm run dev        # 开发
+npm run build      # 打包
+npm run lint       # ESLint 检查
+npm run format     # Prettier 格式化
+npm run test:run   # Vitest 单元测试（20 个用例）
+```
 
-- `CATEGORY_DEFS`：分区 + 对应的 UP 主（昵称、头像 emoji、签名、粉丝数）
-- `VIDEO_TITLES`：每个分区的视频标题（想加视频就往数组里加字符串）
-- `DANMAKU_POOL` / `COMMENT_TEXTS`：弹幕池、评论内容
-- `PALETTE`：封面渐变色
+仓库里还带了几个用 **Chrome DevTools 协议**写的自动化脚本（不需要 puppeteer，用系统自带的 Chrome）：
 
-改完双击 `重新构建.bat` 就行了。
+```bash
+node tools/verify.mjs      # 逐页检查渲染、JS 报错、布局溢出，并截图
+node tools/e2e.mjs         # 模拟真人：点卡片 → 登录 → 发弹幕 → 发评论 → 三连 → 搜索
+node tools/e2e-user.mjs    # 头像悬停卡片 / 改昵称 / 上传头像 / 签到 / 经验飘字
+python tools/check_shots.py  # 对截图做像素级检查
+```
+
+当前验收状态：**页面检查 8 项通过、基础交互 11 项通过、用户互动 20 项通过、单元测试 20 个通过、零 JS 报错**。
+
+`chcp 65001` 之类的坑：三个 `.bat` 是 **GBK 编码**（Windows cmd 默认 936 代码页，存 UTF-8 会乱码），
+它们的 UTF-8 源文件放在 `tools/bat-src/*.bat.txt`，改完执行 `python tools/bat-src/build_bats.py` 重新生成。
 
 ---
 
-## 七、常见问题
+## 八、想改成自己的内容？
 
-**1. 提示「没有找到 Java 17 或更高版本」**
+| 想改什么 | 改哪里 |
+| --- | --- |
+| 分区、UP 主、视频标题 | `backend/src/main/java/com/bili/demo/data/DataStore.java` 顶部的 `CATEGORY_DEFS` / `VIDEO_TITLES` |
+| 弹幕池、评论文案、封面配色 | 同上文件里的 `DANMAKU_POOL` / `COMMENT_TEXTS` / `PALETTE` |
+| 番剧数据 | `DataStore.java` 的 `seedBangumi()` |
+| 经验规则、等级经验表 | `UserStore.java` 的 `addExp()` / `nextExpMax()`，以及 `VideoController.expPayload()` 里的加成数值 |
+| 首页端口、上传目录 | `backend/src/main/resources/application.yml` |
 
-这个项目用的是 Spring Boot 3，需要 Java 17+（Java 8 跑不了）。
-你电脑上其实装了 JDK 17，可以先在这个 bat 文件的开头加一行：
-
-```bat
-set JAVA_HOME=D:\ProgramData\jdk\jdk-17
-```
-
-**2. 提示端口 8080 被占用**
-
-说明已经有一个服务在跑了（或者别的软件占用了）。
-可以先看看是不是已经开过浏览器窗口；要换端口的话，改
-`backend/src/main/resources/application.yml` 里的 `server.port`，然后重新构建。
-
-**3. 双击「重新构建.bat」报错 `'vite' is not recognized`**
-
-说明 npm 把开发依赖跳过了（你的系统环境变量里可能设置了 `NODE_ENV=production`）。
-脚本里已经加了 `--include=dev` 处理这个情况；如果还不行，在 frontend 目录下手动执行：
-
-```bat
-set NODE_ENV=
-npm install --include=dev
-npm run build
-```
-
-**4. 页面上的视频点开为什么没有画面？**
-
-因为演示项目里没有真实的视频文件，播放器是模拟的（画面是渐变动画 + 弹幕）。
-想接真实视频的话，把 `frontend/src/components/PlayerView.vue` 里 `.scene` 那一段
-换成 `<video :src="xxx">`，再把 `time` 换成 `video.currentTime` 就可以了。
-
-**5. 重启后我发的弹幕 / 评论怎么没了？**
-
-数据都存在内存里（没有数据库），重启就恢复初始状态。想持久化的话可以接 MySQL + MyBatis / JPA。
+改完双击 `重新构建.bat` 即可。
 
 ---
 
-## 八、开发者：自动化测试与工具
+## 九、怎么上传到 GitHub
 
-项目里带了几个用 Chrome DevTools 协议写的脚本（不需要装 puppeteer，用系统自带的 Chrome）：
+**方式 A：用脚本（推荐）**
 
-```bat
-node tools\verify.mjs   :: 逐页检查元素是否渲染、有没有 JS 报错、有没有布局溢出，并截图到 shots\
-node tools\e2e.mjs      :: 模拟真人：点卡片 → 登录 → 发弹幕 → 发评论 → 三连 → 搜索
-python tools\check_shots.py    :: 对截图做像素级检查（颜色丰富度、品牌色占比等）
+1. 打开 <https://github.com/new>，仓库名填 `bilibili-clone`，选 **Public**，
+   下面的 README / .gitignore / license **都不要勾**，点 Create
+2. 双击项目里的 **`上传到GitHub.bat`**，按提示粘贴仓库地址（形如 `https://github.com/你的用户名/bilibili-clone.git`）
+3. 第一次推送会**弹出 GitHub 登录窗口**（你的电脑已装 Git Credential Manager），登录授权即可
+
+**方式 B：手动敲命令**
+
+```bash
+git init
+git add -A
+git commit -m "feat: 仿哔哩哔哩网站（Vue3 + Spring Boot3）"
+git branch -M main
+git remote add origin https://github.com/你的用户名/bilibili-clone.git
+git push -u origin main
 ```
 
-运行前请先启动网站。
+> 💡 GitHub 从 2021 年起就不支持用「账号密码」推送了，只能用 **Personal Access Token**、**SSH key**
+> 或者 **Git Credential Manager 登录**（本机已装，最省事）。
+> 推送成功后，去仓库的 Actions 页面就能看到 CI 自动跑前端检查、单元测试、打包和冒烟测试。
 
-其他工具：
+---
 
-- `tools/stop-server.ps1`：停掉正在运行的网站（重新构建脚本会自动调用）
-- `tools/bat-src/`：三个 .bat 的 UTF-8 源文件 + 生成脚本（见上文「小知识」）
+## 十、常见问题
 
-当前验收状态：**8 项页面检查全部通过、11 项交互测试全部通过、零 JS 报错**。
+**1. 提示找不到 Java 17**
+本项目用 Spring Boot 3，需要 Java 17+（Java 8 不行）。可以在 `启动网站.bat` 开头加一行：
+`set JAVA_HOME=你的JDK目录`。
+
+**2. 提示 8080 端口被占用**
+脚本会自动尝试停掉旧服务；如果是别的软件占用，改 `application.yml` 里的 `server.port`。
+
+**3. 报 `'vite' is not recognized`**
+npm 跳过了开发依赖（环境变量里可能有 `NODE_ENV=production`）。脚本已加 `--include=dev`；
+手动执行时先 `set NODE_ENV=` 再 `npm install --include=dev`。
+
+**4. 播放器为什么没有画面？**
+演示项目没有真实视频文件，画面是用随进度变化的渐变动画模拟的，弹幕、进度、倍速都是真的。
+想接真实视频：把 `PlayerView.vue` 里的 `.scene` 换成 `<video :src="...">`，再把 `time` 换成 `video.currentTime`。
+
+**5. 重启后我发的弹幕 / 评论没了？**
+视频与弹幕存在内存里（重启恢复初始状态），但**用户资料、等级经验、头像会保存到 `uploads/`**，不会丢。
+
+---
+
+## 十一、许可
+
+[MIT](LICENSE) —— 随便用、随便改，保留版权声明即可。页面设计版权归哔哩哔哩官方所有，本项目仅用于学习交流。
