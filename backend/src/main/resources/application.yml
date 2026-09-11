@@ -1,0 +1,30 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: bili-web
+  web:
+    resources:
+      # 前端打包后的静态文件放在 classpath:/static 下
+      static-locations: classpath:/static/
+  servlet:
+    multipart:
+      # 头像上传大小限制（前端也做了 5MB 校验）
+      max-file-size: 5MB
+      max-request-size: 6MB
+  mvc:
+    problemdetails:
+      enabled: false
+
+# 用户资料 / 上传的头像保存在这个目录（相对项目根目录）
+bili:
+  upload-dir: ./uploads
+
+logging:
+  level:
+    root: info

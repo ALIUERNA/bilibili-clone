@@ -1,0 +1,32 @@
+# 构建镜像时不需要的东西（能明显加快构建速度、减小上下文体积）
+
+# 依赖与构建产物（镜像里会重新装 / 重新打）
+node_modules
+**/node_modules
+frontend/dist
+backend/target
+backend/src/main/resources/static
+
+# 本地运行产生的数据
+uploads
+shots
+.chrome-*
+
+# 版本控制与编辑器
+.git
+.gitignore
+.gitattributes
+.github
+.idea
+.vscode
+*.iml
+
+# 文档与脚本
+*.md
+*.bat
+tools
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
+*.log

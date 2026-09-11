@@ -1,0 +1,128 @@
+@echo off
+title 重新构建 - 前端打包 + 后端打包
+setlocal
+
+set "ROOT=%~dp0"
+set "FE=%ROOT%frontend"
+set "BE=%ROOT%backend"
+set "STATIC=%BE%\src\main\resources\static"
+
+echo =====================================================
+echo    重新构建：Vue 打包 - 复制到后端 - 打成可执行 jar
+echo =====================================================
+echo.
+
+where npm >nul 2>&1
+if errorlevel 1 goto NONODE
+
+set "JAVA_EXE="
+call :tryjava "%JAVA_HOME%\bin\java.exe"
+call :tryjava "D:\ProgramData\jdk\jdk-17\bin\java.exe"
+call :tryjava "D:\ProgramData\jdk\jdk-21\bin\java.exe"
+call :tryjava "C:\Program Files\Java\jdk-21\bin\java.exe"
+call :tryjava "C:\Program Files\Java\jdk-17\bin\java.exe"
+for %%J in (java.exe) do call :tryjava "%%~$PATH:J"
+if not defined JAVA_EXE goto NOJAVA
+
+set "MVN_CMD="
+call :trymvn "%ROOT%tools\apache-maven-3.9.9\bin\mvn.cmd"
+call :trymvn "D:\ProgramData\maven\apache-maven-3.9.11\bin\mvn.cmd"
+call :trymvn "D:\ProgramData\maven\apache-maven-3.9.9\bin\mvn.cmd"
+call :trymvn "C:\Program Files\apache-maven-3.9.9\bin\mvn.cmd"
+for %%M in (mvn.cmd) do call :trymvn "%%~$PATH:M"
+if not defined MVN_CMD goto NOMVN
+
+echo [1/5] Node 版本：
+node -v
+echo [2/5] Java 版本：
+"%JAVA_EXE%" -version
+echo [3/5] Maven：%MVN_CMD%
+echo.
+echo       先停掉正在运行的服务，否则 jar 被占用会打包失败...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\stop-server.ps1"
+echo.
+
+cd /d "%FE%"
+if exist "node_modules" goto SKIPINSTALL
+echo 首次运行，正在安装前端依赖（大约 1~2 分钟）...
+set "NODE_ENV="
+call npm install --include=dev --no-audit --no-fund
+if errorlevel 1 goto FE_FAIL
+:SKIPINSTALL
+
+echo [4/5] 正在打包前端...
+set "NODE_ENV="
+call npm run build
+if errorlevel 1 goto FE_FAIL
+
+if exist "%STATIC%" rmdir /s /q "%STATIC%"
+mkdir "%STATIC%"
+xcopy "%FE%\dist\*" "%STATIC%\" /e /i /y /q >nul
+echo       前端产物已复制到 backend\src\main\resources\static
+echo.
+echo [5/5] 正在打包后端（第一次会下载依赖，可能要几分钟）...
+cd /d "%BE%"
+call "%MVN_CMD%" -B -q package -DskipTests
+if errorlevel 1 goto BE_FAIL
+
+echo.
+echo =====================================================
+echo    构建完成！产物：backend\target\bili-web.jar
+echo    现在可以双击「启动网站.bat」运行了。
+echo =====================================================
+pause
+exit /b 0
+
+:NONODE
+echo [错误] 没有找到 npm，请先安装 Node.js 18 或更高版本：https://nodejs.org/
+echo.
+pause
+exit /b 1
+
+:NOJAVA
+echo [错误] 没有找到 Java 17 或更高版本，无法编译后端。
+echo.
+pause
+exit /b 1
+
+:NOMVN
+echo [错误] 没有找到 Maven。
+echo 可以下载 apache-maven-3.9.9 解压到 tools 目录，或者安装到 PATH 里。
+echo.
+pause
+exit /b 1
+
+:FE_FAIL
+echo.
+echo [错误] 前端打包失败，请把上面的报错内容发给我看看。
+echo 小提示：如果报 'vite' is not recognized，说明开发依赖没装上，
+echo 可以先在 frontend 目录手动执行：set NODE_ENV= 然后 npm install --include=dev
+echo.
+pause
+exit /b 1
+
+:BE_FAIL
+echo.
+echo [错误] 后端打包失败，请把上面的报错内容发给我看看。
+echo.
+pause
+exit /b 1
+
+:tryjava
+if "%~1"=="" exit /b
+if defined JAVA_EXE exit /b
+if not exist "%~1" exit /b
+"%~1" -version > "%TEMP%\bili_java_version.txt" 2>&1
+findstr /r /c:"version \"17\." /c:"version \"18\." /c:"version \"19\." /c:"version \"2[0-9]\." "%TEMP%\bili_java_version.txt" >nul
+if errorlevel 1 exit /b
+set "JAVA_EXE=%~1"
+rem %~1 是 ...\jdk-17\bin\java.exe，往上退两级就是 JDK 根目录，Maven 需要这个
+for %%A in ("%~1\..\..") do set "JAVA_HOME=%%~fA"
+exit /b
+
+:trymvn
+if "%~1"=="" exit /b
+if defined MVN_CMD exit /b
+if not exist "%~1" exit /b
+set "MVN_CMD=%~1"
+exit /b

@@ -1,0 +1,124 @@
+@echo off
+title 上传到 GitHub
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+
+echo =====================================================
+echo    把「哔哩哔哩仿站」上传到 GitHub
+echo =====================================================
+echo.
+
+where git >nul 2>&1
+if errorlevel 1 goto NOGIT
+
+rem ---------- 1. 初始化仓库 ----------
+if exist ".git" goto HASGIT
+echo [1/5] 初始化 Git 仓库...
+git init -q
+git branch -M main 2>nul
+goto GITREADY
+:HASGIT
+echo [1/5] 已经是 Git 仓库，跳过初始化
+:GITREADY
+
+rem 让中文文件名正常显示，不要在提交时乱改换行符
+git config core.quotepath false
+git config core.autocrlf false
+
+rem ---------- 2. 检查提交身份 ----------
+set "GITNAME="
+for /f "delims=" %%i in ('git config user.name') do set "GITNAME=%%i"
+if defined GITNAME goto HAVENAME
+echo.
+echo 第一次使用需要告诉 Git 你是谁（写进提交记录里）
+set /p GITNAME=  你的名字或 GitHub 用户名:
+git config user.name "!GITNAME!"
+:HAVENAME
+
+set "GITMAIL="
+for /f "delims=" %%i in ('git config user.email') do set "GITMAIL=%%i"
+if defined GITMAIL goto HAVEMAIL
+set /p GITMAIL=  你的邮箱:
+git config user.email "!GITMAIL!"
+:HAVEMAIL
+
+echo [2/5] 添加文件到暂存区...
+git add -A
+
+echo [3/5] 提交...
+git commit -q -m "feat: 仿哔哩哔哩网站（Vue 3 + Spring Boot 3）" 2>nul
+if errorlevel 1 echo       没有新改动，跳过提交
+
+rem ---------- 4. 配置远程仓库 ----------
+set "REMOTE="
+for /f "delims=" %%i in ('git remote get-url origin 2^>nul') do set "REMOTE=%%i"
+if defined REMOTE goto HASREMOTE
+
+echo.
+echo [4/5] 还需要一个 GitHub 仓库地址。
+echo.
+echo       请先在浏览器打开 https://github.com/new
+echo       - Repository name 填： bilibili-clone
+echo       - 选择 Public（公开）
+echo       - 下面的 Add README / .gitignore / license 全部不要勾
+echo       - 点 Create repository
+echo       然后把页面上的地址复制过来，形如：
+echo         https://github.com/你的用户名/bilibili-clone.git
+echo.
+set /p REMOTE=  仓库地址:
+if not defined REMOTE goto NOREMOTE
+git remote add origin "!REMOTE!"
+goto PUSH
+:HASREMOTE
+echo [4/5] 已有远程仓库：!REMOTE!
+
+:PUSH
+echo [5/5] 正在推送（第一次会让你登录 GitHub，按提示授权即可）...
+echo.
+git push -u origin main
+if errorlevel 1 goto PUSHFAIL
+
+echo.
+echo =====================================================
+echo    上传成功！打开 https://github.com 就能看到你的项目了
+echo =====================================================
+pause
+exit /b 0
+
+:NOGIT
+echo [错误] 没有找到 Git。
+echo 请先安装 Git for Windows：https://git-scm.com/download/win
+echo 安装时一路点「下一步」就行。
+echo.
+pause
+exit /b 1
+
+:NOREMOTE
+echo.
+echo 没有填写仓库地址，先不上传了。下次双击本文件继续。
+echo.
+pause
+exit /b 1
+
+:PUSHFAIL
+echo.
+echo =====================================================
+echo    推送失败，常见原因：
+echo.
+echo    1) 没登录 GitHub
+echo       解决办法：安装 GitHub Desktop 登录一次（最省事），
+echo       或者用「个人访问令牌」当密码：
+echo         GitHub - Settings - Developer settings
+echo         - Personal access tokens - Tokens(classic) - Generate new token
+echo         勾选 repo，生成后复制令牌，推送时用户名填你的 GitHub 名字，
+echo         密码处粘贴那个令牌（不是登录密码）。
+echo.
+echo    2) 远程仓库已有内容（比如创建时勾了 README）
+echo       解决办法：先执行 git pull --rebase origin main --allow-unrelated-histories
+echo       然后再运行本脚本。
+echo.
+echo    3) 仓库地址写错了
+echo       解决办法：git remote set-url origin 正确的地址
+echo =====================================================
+pause
+exit /b 1

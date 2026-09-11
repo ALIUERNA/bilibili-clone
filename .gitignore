@@ -1,0 +1,27 @@
+# ========== 依赖 ==========
+node_modules/
+frontend/node_modules/
+
+# ========== 构建产物 ==========
+frontend/dist/
+backend/target/
+# 前端打包后会复制到这里，属于生成物，不进版本库（用 重新构建.bat / CI 生成）
+backend/src/main/resources/static/
+tools/apache-maven-*/
+
+# ========== 运行时数据（用户昵称、上传的头像等）==========
+uploads/
+
+# ========== 测试 / 截图 / 临时文件 ==========
+shots/
+.chrome-*/
+*.log
+npm-debug.log*
+
+# ========== 编辑器 / 系统 ==========
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+desktop.ini
