@@ -32,6 +32,20 @@ const durationText = computed(() => formatDuration(props.video.duration))
 const viewText = computed(() => formatCount(props.video.views))
 const danmakuText = computed(() => formatCount(props.video.danmakus))
 
+/**
+ * 真实封面帧：后端 FFmpeg 截帧后会给 coverUrl / posterUrl。
+ * 没有真实封面（或图片加载失败）时，用渐变占位图兜底 —— 永远不会出现空白。
+ */
+const imgFailed = ref(false)
+const coverImage = computed(() => {
+  if (imgFailed.value) return ''
+  const v = props.video
+  return v?.coverUrl || v?.posterUrl || ''
+})
+function onImgError() {
+  imgFailed.value = true
+}
+
 function open() {
   router.push({ name: 'video', params: { id: props.video.id } })
 }
@@ -53,13 +67,26 @@ const rankClass = computed(() => {
   <!-- 首页网格卡片 -->
   <article v-if="layout === 'grid'" ref="cardRef" class="vcard" :style="tiltStyle" @click="open">
     <div class="cover" :style="cover">
-      <span class="cover-emoji">{{ video.coverEmoji }}</span>
-      <span class="cover-bigtext">{{ video.coverText }}</span>
+      <!-- 真实封面帧：有就铺满，加载失败自动回落到下面的渐变占位层 -->
+      <img
+        v-if="coverImage"
+        class="cover-img"
+        :src="coverImage"
+        :alt="video.title"
+        loading="lazy"
+        decoding="async"
+        @error="onImgError"
+      />
+      <template v-else>
+        <span class="cover-emoji">{{ video.coverEmoji }}</span>
+        <span class="cover-bigtext">{{ video.coverText }}</span>
+      </template>
       <span class="duration">{{ durationText }}</span>
-      <span class="play-badge">▶</span>
+      <span v-if="video.playable" class="live-badge"><AiIcon><VideoPlay /></AiIcon> 可播放</span>
+      <span class="play-badge"><AiIcon :size="30"><VideoPlay /></AiIcon></span>
       <div class="cover-mask">
-        <span>▶ {{ viewText }}播放</span>
-        <span>💬 {{ danmakuText }}弹幕</span>
+        <span><AiIcon><VideoPlay /></AiIcon> {{ viewText }}播放</span>
+        <span><AiIcon><ChatDotRound /></AiIcon> {{ danmakuText }}弹幕</span>
       </div>
     </div>
 
@@ -74,7 +101,8 @@ const rankClass = computed(() => {
   <!-- 右侧相关推荐：横向小卡 -->
   <article v-else-if="layout === 'list'" class="vrow" @click="open">
     <div class="row-cover" :style="cover">
-      <span class="row-emoji">{{ video.coverEmoji }}</span>
+      <img v-if="coverImage" class="cover-img" :src="coverImage" :alt="video.title" loading="lazy" @error="onImgError" />
+      <span v-else class="row-emoji">{{ video.coverEmoji }}</span>
       <span class="duration">{{ durationText }}</span>
     </div>
     <div class="row-info">
@@ -88,7 +116,8 @@ const rankClass = computed(() => {
   <article v-else class="vrank" @click="open">
     <span class="rank-no" :class="rankClass">{{ rank }}</span>
     <div class="rank-cover" :style="cover">
-      <span class="row-emoji">{{ video.coverEmoji }}</span>
+      <img v-if="coverImage" class="cover-img" :src="coverImage" :alt="video.title" loading="lazy" @error="onImgError" />
+      <span v-else class="row-emoji">{{ video.coverEmoji }}</span>
       <span class="duration">{{ durationText }}</span>
     </div>
     <div class="rank-info">
@@ -101,9 +130,9 @@ const rankClass = computed(() => {
         <span>{{ video.pubAgo }}</span>
       </p>
       <p class="rank-stat">
-        <span>▶ {{ viewText }}</span>
-        <span>💬 {{ danmakuText }}</span>
-        <span>👍 {{ formatCount(video.likes) }}</span>
+        <span><AiIcon><VideoPlay /></AiIcon> {{ viewText }}</span>
+        <span><AiIcon><ChatDotRound /></AiIcon> {{ danmakuText }}</span>
+        <span><AiIcon><Pointer /></AiIcon> {{ formatCount(video.likes) }}</span>
       </p>
     </div>
   </article>
@@ -129,6 +158,38 @@ const rankClass = computed(() => {
   align-items: center;
   justify-content: center;
   transition: box-shadow 0.25s ease;
+  /* 兜底背景：即使图片没加载出来也不会是空白 */
+  background-color: var(--surface-sunken);
+  background-size: cover;
+  background-position: center;
+}
+
+/* 兼容老浏览器（不支持 aspect-ratio 时用 padding 撑出 16:9） */
+.cover::before {
+  content: '';
+  display: block;
+  padding-top: 56.25%;
+}
+
+.cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.live-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(110, 86, 248, 0.9);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .vcard:hover .cover {
@@ -163,7 +224,6 @@ const rankClass = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 3px;
   opacity: 0;
   transform: scale(0.6);
   transition: opacity 0.25s, transform 0.3s cubic-bezier(0.34, 1.5, 0.64, 1);
@@ -268,6 +328,8 @@ const rankClass = computed(() => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  background-color: var(--surface-sunken);
+  background-size: cover;
 }
 
 .row-emoji {
@@ -315,7 +377,7 @@ const rankClass = computed(() => {
 }
 
 .vrank:hover {
-  background: #f7f8fa;
+  background: var(--surface-0);
 }
 
 .rank-no {
@@ -329,15 +391,15 @@ const rankClass = computed(() => {
 }
 
 .rank-no.gold {
-  color: #ffb400;
+  color: var(--gold-500);
 }
 
 .rank-no.silver {
-  color: #c0c4cc;
+  color: var(--ink-4);
 }
 
 .rank-no.bronze {
-  color: #d3874a;
+  color: var(--accent-500);
 }
 
 .rank-cover {

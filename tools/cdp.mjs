@@ -3,8 +3,37 @@
  * 只依赖 Node 自带的 fetch / WebSocket，不需要装 puppeteer。
  */
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+/**
+ * 找 Chrome：环境变量 CHROME_PATH 优先，其次常见安装位置。
+ * 找不到就报一个说得清的错，而不是让 spawn 抛一堆英文栈。
+ */
+function findChrome() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    process.env.LOCALAPPDATA + '/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+  ].filter(Boolean)
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p
+    } catch (e) {
+      /* 忽略无权限的目录 */
+    }
+  }
+  throw new Error(
+    ' 没有找到 Chrome / Edge。\n' +
+      '   请安装 Chrome，或设置环境变量 CHROME_PATH 指向浏览器可执行文件，例如：\n' +
+      '     set CHROME_PATH=C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+  )
+}
+
+const CHROME = findChrome()
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -49,6 +78,10 @@ export class CDP {
 
 /** 启动无头 Chrome 并打开一个页面，返回一组好用的封装方法 */
 export async function openBrowser({ port = 9224, profile, width = 1680, height = 1050 } = {}) {
+  // 注意：--user-data-dir 必须是绝对路径。
+  // 传相对路径时 Chrome 会以自己的工作目录去解析，很可能直接启动失败（而且 stdio 被忽略，看不到原因）。
+  const profileDir = path.resolve(profile || `.chrome-profile-${port}`)
+
   const chrome = spawn(
     CHROME,
     [
@@ -58,15 +91,21 @@ export async function openBrowser({ port = 9224, profile, width = 1680, height =
       '--no-default-browser-check',
       '--hide-scrollbars',
       `--remote-debugging-port=${port}`,
-      `--user-data-dir=${profile}`,
+      `--user-data-dir=${profileDir}`,
       `--window-size=${width},${height}`,
       'about:blank'
     ],
     { stdio: 'ignore' }
   )
 
+  let exited = null
+  chrome.on('exit', (code) => {
+    exited = code
+  })
+
   let version = null
   for (let i = 0; i < 60; i++) {
+    if (exited !== null) break
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/version`)
       if (res.ok) {
@@ -78,7 +117,13 @@ export async function openBrowser({ port = 9224, profile, width = 1680, height =
     }
     await sleep(500)
   }
-  if (!version) throw new Error('Chrome 启动失败')
+  if (!version) {
+    throw new Error(
+      exited !== null
+        ? `Chrome 启动后立刻退出（exit code ${exited}）。\n   浏览器：${CHROME}\n   临时目录：${profileDir}\n   常见原因：端口 ${port} 被占用，或临时目录被另一个 Chrome 进程锁住。`
+        : `Chrome 启动超时（30 秒内没等到调试端口 ${port}）。\n   浏览器：${CHROME}`
+    )
+  }
 
   const ws = new WebSocket(version.webSocketDebuggerUrl)
   await new Promise((r) => ws.addEventListener('open', r, { once: true }))

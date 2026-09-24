@@ -1,0 +1,314 @@
+/* ==========================================================================
+   a哩a哩 · 设计令牌 (Design Tokens) v2 —— 主题「极光 Aurora」
+   ==========================================================================
+
+   设计理念
+   --------
+   a哩a哩 是一个「视频 + 弹幕」的年轻社区。视觉语言提炼自两件事物：
+     · 弹幕 —— 流动的、成排掠过的光条；
+     · 极光 —— 在同一画面里同时存在的紫、粉、橙渐变。
+   所以品牌色从「紫」出发（而不是像常见视频站那样用粉或红），
+   并用「珊瑚橙」做强调、用「天青」做信息色，三者构成可辨识的极光渐变。
+
+   命名约定
+   --------
+   --brand-*    品牌紫，主按钮 / 主态 / 强调
+   --accent-*   珊瑚橙，次强调 / 激励 / 会员
+   --cyan-*     天青，链接 / 信息 / 直播
+   --mint-*     薄荷，成功 / 在线
+   --rose-*     玫瑰，危险 / 错误 / 取关
+   --gold-*     星金，等级 / 大会员
+   --ink-*      文字层级（1 最深 → 4 最浅）
+   --line-*     分割线 / 描边
+   --surface-*  背景层级（0 页面 → 3 浮层）
+   --r-*        圆角
+   --sd-*       阴影
+   --sp-*       间距（4 的倍数）
+   --dur-*      动效时长
+   --ease-*     缓动曲线
+
+   兼容说明
+   --------
+   历史样式里大量使用 --bili-pink / --bili-blue / --text-1 / --bg-page 等旧名字，
+   文件末尾保留了它们的映射，保证老组件不改一行也不会掉色。
+   ========================================================================== */
+
+:root {
+  /* ---------------- 色彩：品牌紫 ---------------- */
+  --brand-50: var(--brand-50);
+  --brand-100: #e9e2ff;
+  --brand-200: #d3c7ff;
+  --brand-300: #b3a1ff;
+  --brand-400: #8e7bff;
+  --brand-500: #6e56f8;
+  --brand-600: #5a41e0;
+  --brand-700: #4930b8;
+  --brand-800: #38248c;
+  --brand-fg: #ffffff;
+
+  /* ---------------- 色彩：珊瑚橙（强调） ---------------- */
+  --accent-50: #fff3ed;
+  --accent-100: #ffe2d4;
+  --accent-200: #ffc7ac;
+  --accent-400: #ff9b72;
+  --accent-500: #ff7a45;
+  --accent-600: #f2601f;
+  --accent-fg: #ffffff;
+
+  /* ---------------- 色彩：功能色 ---------------- */
+  --cyan-50: #e8f8fc;
+  --cyan-100: #c9eef7;
+  --cyan-500: #12b7d6;
+  --cyan-600: #0e97b2;
+
+  --mint-50: #e9f9f2;
+  --mint-100: #d3f3e5;
+  --mint-200: var(--mint-200);
+  --mint-500: #2dbe8b;
+  --mint-600: #1f9e72;
+
+  --rose-50: #feecf0;
+  --rose-100: #fdd9e1;
+  --rose-200: #fbb6c4;
+  --rose-500: #f5455c;
+  --rose-600: #d92b44;
+
+  --gold-50: #fdf5e4;
+  --gold-100: #faeecb;
+  --gold-200: var(--gold-200);
+  --gold-500: #e8b44a;
+  --gold-600: #c8952c;
+  --gold-700: var(--gold-700);
+
+  /* ---------------- 色彩：中性 ---------------- */
+  --ink-1: #14161a;
+  --ink-2: #5a606b;
+  --ink-3: #8a9099;
+  --ink-4: #b6bbc2;
+  --ink-on-dark: #ffffff;
+
+  --line: #e9ebef;
+  --line-2: var(--surface-sunken);
+  --line-strong: #d8dce3;
+
+  --surface-0: var(--surface-0);
+  --surface-1: #ffffff;
+  --surface-2: #fbfcfe;
+  --surface-3: #ffffff;
+  --surface-sunken: var(--surface-sunken);
+
+  /* ---------------- 渐变：极光 ---------------- */
+  --grad-brand: linear-gradient(120deg, #7c5cff 0%, #9b6bf5 48%, #ff7a45 100%);
+  --grad-brand-rev: linear-gradient(120deg, #ff7a45 0%, #9b6bf5 52%, #7c5cff 100%);
+  --grad-brand-soft: linear-gradient(120deg, rgba(110, 86, 248, 0.12), rgba(255, 122, 69, 0.12));
+  --grad-brand-pale: linear-gradient(135deg, var(--brand-50) 0%, #fdf1ea 100%);
+  --grad-aurora: radial-gradient(60% 120% at 12% 0%, rgba(110, 86, 248, 0.13), transparent 62%),
+    radial-gradient(50% 110% at 62% -10%, rgba(155, 107, 245, 0.12), transparent 60%),
+    radial-gradient(46% 100% at 98% 0%, rgba(255, 122, 69, 0.11), transparent 62%);
+  --grad-sheen: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.55) 48%, transparent 64%);
+
+  /* 进度条 / 经验条填充：统一横向铺开的品牌渐变 */
+  --grad-fill: linear-gradient(90deg, #b3a1ff, #6e56f8);
+  /* 等级 / 经验徽章：薄荷渐变。和品牌紫拉开距离，一眼区分「成长值」和「主操作」 */
+  --grad-level: linear-gradient(135deg, #4ad9a4, #2dbe8b);
+
+  /* ---------------- 圆角 ---------------- */
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-2xl: 28px;
+  --r-full: 999px;
+
+  /* ---------------- 阴影 ---------------- */
+  --sd-1: 0 1px 2px rgba(20, 22, 26, 0.04), 0 1px 3px rgba(20, 22, 26, 0.03);
+  --sd-2: 0 4px 16px rgba(20, 22, 26, 0.07);
+  --sd-3: 0 12px 34px rgba(20, 22, 26, 0.11);
+  --sd-4: 0 24px 60px rgba(20, 22, 26, 0.16);
+  --sd-brand: 0 8px 22px rgba(110, 86, 248, 0.28);
+  --sd-accent: 0 8px 22px rgba(255, 122, 69, 0.28);
+  --sd-focus: 0 0 0 3px rgba(110, 86, 248, 0.18);
+
+  /* ---------------- 间距 ---------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ---------------- 字体 ---------------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  --font-num: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 20px;
+  --fs-2xl: 24px;
+  --fs-3xl: 30px;
+
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --lh-tight: 1.25;
+  --lh-base: 1.6;
+  --lh-loose: 1.8;
+
+  /* ---------------- 动效 ---------------- */
+  --dur-fast: 0.15s;
+  --dur-base: 0.24s;
+  --dur-slow: 0.4s;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ---------------- 层级 ---------------- */
+  --z-base: 1;
+  --z-sticky: 100;
+  --z-header: 1000;
+  --z-menu: 1100;
+  --z-overlay: 1200;
+  --z-modal: 1300;
+  --z-toast: 1400;
+
+  /* ---------------- 布局 ---------------- */
+  --header-height: 64px;
+  --container-max: 1400px;
+  --container-wide: 1600px;
+  --container-pad: 20px;
+
+  /* ================= 旧变量名兼容映射（勿删） ================= */
+  --bili-pink: var(--brand-500);
+  --bili-pink-hover: var(--brand-400);
+  --bili-blue: var(--cyan-500);
+  --bili-blue-hover: var(--cyan-400, #40c5f1);
+  --text-1: var(--ink-1);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+  --bg-page: var(--surface-0);
+  --bg-card: var(--surface-1);
+  --radius: var(--r-sm);
+  --shadow-card: var(--sd-1);
+}
+
+/* ==========================================================================
+   暗色主题
+   页面上的 class 由 settings 面板切换；同时支持 [data-theme] 写法，
+   方便以后接 prefers-color-scheme 或 SSR 注入。
+   ========================================================================== */
+
+.theme-dark,
+[data-theme='dark'] {
+  --brand-50: #1e1b33;
+  --brand-100: #272147;
+  --brand-200: #372e63;
+  --brand-300: #6d5ad4;
+  --brand-400: #8e7bff;
+  --brand-500: #9b8bff;
+  --brand-600: #b0a3ff;
+  --brand-700: #c7bdff;
+  --brand-800: #ded8ff;
+
+  --accent-50: #2b1d16;
+  --accent-100: #3a2519;
+  --accent-200: #57351f;
+  --accent-400: #ff9b72;
+  --accent-500: #ff8f5e;
+  --accent-600: #ffa87f;
+
+  --cyan-50: #10262c;
+  --cyan-100: #16333b;
+  --cyan-500: #35c9e6;
+  --cyan-600: #6ed9ef;
+
+  --mint-50: #10261f;
+  --mint-100: #16352a;
+  --mint-200: #1d4a39;
+  --mint-500: #3fd39c;
+  --mint-600: #6ee0b6;
+
+  --rose-50: #2d151a;
+  --rose-100: #43232c;
+  --rose-200: #5c2d35;
+  --rose-500: #ff6076;
+  --rose-600: #ff8b9c;
+
+  --gold-50: #2c2415;
+  --gold-100: #3a2f1b;
+  --gold-200: #4d3f22;
+  --gold-500: #f0c05c;
+  --gold-600: #f5d183;
+  --gold-700: #f7dfae;
+
+  --ink-1: #e9ebf0;
+  --ink-2: #a8aeb8;
+  --ink-3: #767c86;
+  --ink-4: #5a606b;
+
+  --line: #2a2d34;
+  --line-2: #22252b;
+  --line-strong: #3a3e47;
+
+  --surface-0: #0f1116;
+  --surface-1: #171a20;
+  --surface-2: #1c1f26;
+  --surface-3: #22262e;
+  --surface-sunken: #121419;
+
+  --grad-brand: linear-gradient(120deg, #8e7bff 0%, #b07cf7 48%, #ff8f5e 100%);
+  --grad-brand-rev: linear-gradient(120deg, #ff8f5e 0%, #b07cf7 52%, #8e7bff 100%);
+  --grad-brand-soft: linear-gradient(120deg, rgba(142, 123, 255, 0.18), rgba(255, 143, 94, 0.16));
+  --grad-brand-pale: linear-gradient(135deg, #1c1a2e 0%, #241d21 100%);
+  --grad-aurora: radial-gradient(60% 120% at 12% 0%, rgba(142, 123, 255, 0.16), transparent 62%),
+    radial-gradient(50% 110% at 62% -10%, rgba(176, 124, 247, 0.13), transparent 60%),
+    radial-gradient(46% 100% at 98% 0%, rgba(255, 143, 94, 0.1), transparent 62%);
+  --grad-sheen: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.09) 48%, transparent 64%);
+
+  --grad-fill: linear-gradient(90deg, #6d5ad4, #9b8bff);
+  --grad-level: linear-gradient(135deg, #3fd39c, #2aa87c);
+
+  --sd-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --sd-2: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --sd-3: 0 12px 34px rgba(0, 0, 0, 0.55);
+  --sd-4: 0 24px 60px rgba(0, 0, 0, 0.62);
+  --sd-brand: 0 8px 22px rgba(110, 86, 248, 0.36);
+  --sd-accent: 0 8px 22px rgba(255, 122, 69, 0.32);
+  --sd-focus: 0 0 0 3px rgba(142, 123, 255, 0.3);
+
+  --bili-pink: var(--brand-500);
+  --bili-pink-hover: var(--brand-400);
+  --bili-blue: var(--cyan-500);
+  --bili-blue-hover: var(--cyan-600);
+  --text-1: var(--ink-1);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+  --bg-page: var(--surface-0);
+  --bg-card: var(--surface-1);
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 仅在用户显式选择「跟随系统」时才生效 */
+  :root.theme-auto {
+    color-scheme: dark;
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+.theme-dark,
+[data-theme='dark'] {
+  color-scheme: dark;
+}

@@ -1,52 +1,102 @@
 package com.bili.demo.data;
 
+import com.bili.demo.auth.UserContext;
+import com.bili.demo.config.UploadPaths;
+import com.bili.demo.db.DataSyncService;
+import com.bili.demo.db.UserRepository;
 import com.bili.demo.model.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 当前登录用户的状态。
+ * 当前登录用户的状态中心。
  *
- * 和视频数据不同，用户资料（昵称 / 头像 / 等级经验 / 硬币 / 签到记录）
- * 会被写进 uploads/profile.json，所以重启服务后还在。
+ * 两种运行模式：
+ *  - MySQL 模式（默认）：用户资料 / 等级经验 / 硬币 / 签到 全部读写 users 表，
+ *    按请求里的 token 区分不同用户（多个账号同时在线也不会串号）；
+ *  - 内存模式（数据库连不上时兜底）：退回原来的 uploads/profile.json，保证项目依然能跑。
+ *
+ * 老代码的调用方式完全没变：userStore.get() / addExp() / checkin() / stats() / uploadPath() …
  */
 @Component
 public class UserStore {
 
+    private static final Logger log = LoggerFactory.getLogger(UserStore.class);
     private static final ObjectMapper JSON = new ObjectMapper();
+    /** 演示账号：没有登录时，老功能（点赞、发弹幕等）依然用这个账号，保持向后兼容 */
+    public static final long DEMO_USER_ID = 90001L;
 
-    @Value("${bili.upload-dir:./uploads}")
-    private String uploadDir;
+    private final UserRepository userRepo;
+    private final DataSyncService sync;
+    private final UploadPaths uploadPaths;
 
-    private User user;
+    /** userId → User，避免每次请求都查库 */
+    private final Map<Long, User> cache = new ConcurrentHashMap<>();
+
     private Path profileFile;
+    private User jsonFallback;
+
+    public UserStore(UserRepository userRepo, DataSyncService sync, UploadPaths uploadPaths) {
+        this.userRepo = userRepo;
+        this.sync = sync;
+        this.uploadPaths = uploadPaths;
+    }
 
     @PostConstruct
     public void init() {
-        Path dir = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Path dir = uploadPaths.root();
         this.profileFile = dir.resolve("profile.json");
-        this.user = load();
-        if (user == null) {
-            user = createDefaultUser();
-            save();
+        this.jsonFallback = loadJson();
+        if (jsonFallback == null) {
+            jsonFallback = createDefaultUser();
+            saveJson();
         }
-        refreshCheckinState();
-        System.out.println(">>> 用户资料文件：" + profileFile);
+        refreshCheckinState(jsonFallback);
+        log.info(">>> 用户资料目录：{}（模式：{}）", dir, sync.mysqlMode() ? "MySQL" : "内存兜底");
+    }
+
+    public boolean isMysqlMode() {
+        return sync.mysqlMode();
+    }
+
+    /** 当前请求对应的用户；未登录时返回演示账号 */
+    public User get() {
+        Long id = UserContext.userId();
+        if (id == null) {
+            id = DEMO_USER_ID;
+        }
+        User user = resolve(id);
+        refreshCheckinState(user);
+        return user;
+    }
+
+    /** 按 id 取用户（个人中心、空间页用） */
+    public User resolve(long id) {
+        if (sync.mysqlMode()) {
+            return cache.computeIfAbsent(id, key -> userRepo.findById(key).orElseGet(() -> {
+                userRepo.ensureDemoUser();
+                return userRepo.findById(key).orElseGet(() -> userRepo.findById(DEMO_USER_ID).orElse(jsonFallback));
+            }));
+        }
+        return jsonFallback;
+    }
+
+    public void evict(long userId) {
+        cache.remove(userId);
     }
 
     private User createDefaultUser() {
-        User u = new User(90001L, "哔哩哔哩萌新", "😎", "这个人很懒，什么都没写~");
+        User u = new User(DEMO_USER_ID, "a哩a哩萌新", "😎", "这个人很懒，什么都没写~");
         u.level = 5;
         u.exp = 3860;
         u.expMax = 4800;
@@ -63,72 +113,99 @@ public class UserStore {
         return u;
     }
 
-    private User load() {
+    private User loadJson() {
         try {
             if (Files.exists(profileFile)) {
                 return JSON.readValue(profileFile.toFile(), User.class);
             }
         } catch (Exception e) {
-            System.out.println(">>> 读取用户资料失败，使用默认资料：" + e.getMessage());
+            log.warn("读取用户资料失败，使用默认资料：{}", e.getMessage());
         }
         return null;
     }
 
+    /** 保存当前用户（MySQL 模式写数据库，内存模式写 JSON） */
     public synchronized void save() {
-        try {
-            Files.createDirectories(profileFile.getParent());
-            JSON.writerWithDefaultPrettyPrinter().writeValue(profileFile.toFile(), user);
-        } catch (Exception e) {
-            System.out.println(">>> 保存用户资料失败：" + e.getMessage());
+        save(get());
+    }
+
+    public synchronized void save(User user) {
+        if (user == null) {
+            return;
+        }
+        if (sync.mysqlMode()) {
+            userRepo.updateStats(user);
+        } else {
+            jsonFallback = user;
+            saveJson();
         }
     }
 
-    public User get() {
-        refreshCheckinState();
-        return user;
+    private void saveJson() {
+        try {
+            Files.createDirectories(profileFile.getParent());
+            JSON.writerWithDefaultPrettyPrinter().writeValue(profileFile.toFile(), jsonFallback);
+        } catch (Exception e) {
+            log.warn("保存用户资料失败：{}", e.getMessage());
+        }
     }
 
-    private void refreshCheckinState() {
-        user.checkedToday = LocalDate.now().toString().equals(user.lastCheckin);
+    private void refreshCheckinState(User user) {
+        if (user != null) {
+            user.checkedToday = LocalDate.now().toString().equals(user.lastCheckin);
+        }
     }
 
     /** 上传头像后把图片地址记下来 */
     public synchronized void setAvatarUrl(String url) {
+        User user = get();
         user.faceUrl = url;
-        save();
+        if (sync.mysqlMode()) {
+            userRepo.updateAvatar(user.id, url);
+        } else {
+            saveJson();
+        }
     }
 
     /** 恢复成 emoji 头像 */
     public synchronized void clearAvatar() {
+        User user = get();
         user.faceUrl = null;
-        save();
+        if (sync.mysqlMode()) {
+            userRepo.updateAvatar(user.id, null);
+        } else {
+            saveJson();
+        }
     }
 
     /** 修改昵称和签名 */
     public synchronized Map<String, Object> updateProfile(String name, String sign) {
+        User user = get();
         if (name != null && !name.isBlank()) {
-            user.name = name.trim().substring(0, Math.min(20, name.trim().length()));
+            String n = name.trim();
+            user.name = n.substring(0, Math.min(20, n.length()));
         }
         if (sign != null) {
             String s = sign.trim();
             user.sign = s.length() > 60 ? s.substring(0, 60) : s;
         }
-        save();
-        Map<String, Object> data = new LinkedHashMap<>();
+        if (sync.mysqlMode()) {
+            userRepo.updateBasic(user.id, user.name, user.sign, user.faceUrl, user.face);
+        } else {
+            saveJson();
+        }
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
         data.put("name", user.name);
         data.put("sign", user.sign);
         return data;
     }
 
-    /**
-     * 加经验。经验满了就升级（和 B 站一样，升级会补满下一级的经验条）。
-     *
-     * @return 本次是否升级
-     */
+    /** 加经验；满了就升级 */
     public synchronized boolean addExp(int amount) {
         if (amount <= 0) {
             return false;
         }
+        User user = get();
         user.exp += amount;
         boolean levelUp = false;
         while (user.exp >= user.expMax) {
@@ -141,7 +218,7 @@ public class UserStore {
                 break;
             }
         }
-        save();
+        save(user);
         return levelUp;
     }
 
@@ -158,8 +235,8 @@ public class UserStore {
 
     /** 每日签到：经验 +10，硬币 +5 */
     public synchronized Map<String, Object> checkin() {
-        refreshCheckinState();
-        Map<String, Object> data = new LinkedHashMap<>();
+        User user = get();
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
         if (user.checkedToday) {
             data.put("success", false);
             data.put("message", "今天已经签到过了，明天再来吧~");
@@ -178,25 +255,28 @@ public class UserStore {
         return data;
     }
 
-    /** 变成「已登录用户」需要的展示字段（顺便算一下加入天数） */
+    /** 展示字段（含经验进度）。未登录时 user 为 null，前端据此进入游客态 */
     public Map<String, Object> stats() {
-        Map<String, Object> data = new LinkedHashMap<>();
+        return stats(UserContext.loggedIn() ? get() : null);
+    }
+
+    public Map<String, Object> stats(User user) {
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("login", UserContext.loggedIn());
         data.put("user", user);
-        data.put("expPercent", user.expMax == 0 ? 0 : Math.round(user.exp * 1000.0 / user.expMax) / 10.0);
-        data.put("nextLevelExp", Math.max(0, user.expMax - user.exp));
+        if (user != null) {
+            data.put("expPercent", user.expMax == 0 ? 0 : Math.round(user.exp * 1000.0 / user.expMax) / 10.0);
+            data.put("nextLevelExp", Math.max(0, user.expMax - user.exp));
+        }
         return data;
     }
 
     /** 上传目录（绝对路径） */
     public Path uploadPath() {
-        return Paths.get(uploadDir).toAbsolutePath().normalize();
+        return uploadPaths.root();
     }
 
     public File profileDir() {
         return uploadPath().toFile();
-    }
-
-    public long daysSinceJoin() {
-        return ChronoUnit.DAYS.between(LocalDate.now().minusDays(user.joinDays), LocalDate.now());
     }
 }

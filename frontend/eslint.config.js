@@ -25,6 +25,10 @@ export default [
         File: 'readonly',
         Blob: 'readonly',
         Event: 'readonly',
+        CustomEvent: 'readonly',
+        Node: 'readonly',
+        Element: 'readonly',
+        HTMLElement: 'readonly',
         MouseEvent: 'readonly',
         KeyboardEvent: 'readonly',
         IntersectionObserver: 'readonly',
@@ -52,7 +56,10 @@ export default [
       'vue/html-closing-bracket-newline': 'off',
       'vue/first-attribute-linebreak': 'off',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
-      'no-empty': ['error', { allowEmptyCatch: true }]
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      // 不允许随手改原生原型。polyfills.js 是唯一的例外，
+      // 它在文件顶部用 /* eslint-disable no-extend-native */ 单独声明了豁免。
+      'no-extend-native': 'error'
     }
   }
 ]

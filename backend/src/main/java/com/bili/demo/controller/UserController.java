@@ -1,5 +1,7 @@
 package com.bili.demo.controller;
 
+import com.bili.demo.auth.AuthService;
+import com.bili.demo.auth.UserContext;
 import com.bili.demo.data.UserStore;
 import com.bili.demo.model.User;
 import org.springframework.core.io.FileSystemResource;
@@ -19,9 +21,8 @@ import java.util.Map;
 /**
  * 登录 / 退出 / 当前用户 / 改资料 / 上传头像 / 签到。
  *
- * 演示项目：没有做真正的账号校验，点「登录」就送一个已登录用户。
- * 但用户资料（昵称、头像、等级经验、硬币、签到）是会落盘的，
- * 保存在 uploads/profile.json，重启服务依然在。
+ * 真正的账号体系在 AuthController（/api/auth/**）：图形验证码、邮箱验证码、二维码登录。
+ * 这里保留原来的接口，并且都基于「当前登录用户」——未登录时自动回退到演示账号，老功能不受影响。
  */
 @RestController
 public class UserController {
@@ -31,24 +32,27 @@ public class UserController {
     private static final long MAX_AVATAR_SIZE = 5 * 1024 * 1024L;   // 5MB
 
     private final UserStore userStore;
+    private final AuthService authService;
 
-    public UserController(UserStore userStore) {
+    public UserController(UserStore userStore, AuthService authService) {
         this.userStore = userStore;
+        this.authService = authService;
     }
 
-    /** 一键登录（返回演示账号） */
+    /**
+     * 一键登录（演示用）：给演示账号签发一个真实 token。
+     * 正式登录请看 POST /api/auth/login/password、/api/auth/login/email 和二维码接口。
+     */
     @PostMapping("/api/user/login")
     public ResponseEntity<?> login() {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("token", "demo-token-" + System.currentTimeMillis());
-        data.put("user", userStore.get());
-        data.put("stats", userStore.stats());
-        return ResponseEntity.ok(data);
+        User demo = userStore.resolve(UserStore.DEMO_USER_ID);
+        return ResponseEntity.ok(authService.successLogin(demo, "DEMO", "127.0.0.1", "demo", "已使用演示账号登录"));
     }
 
     @PostMapping("/api/user/logout")
     public Map<String, Object> logout() {
-        return Map.of("success", true);
+        authService.logout(UserContext.token());
+        return Map.of("success", true, "message", "已退出登录");
     }
 
     /** 当前登录用户（含经验进度） */

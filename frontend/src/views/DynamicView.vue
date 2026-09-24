@@ -75,14 +75,20 @@ onMounted(() => load(true))
             class="video-box"
             @click="$router.push({ name: 'video', params: { id: d.videoId } })"
           >
-            <div class="vt">📺 相关投稿</div>
+            <div class="vt"><AiIcon><VideoCamera /></AiIcon> 相关投稿</div>
             <div class="vtitle clamp-2">{{ d.videoTitle }}</div>
           </div>
 
           <div class="actions">
-            <button :class="{ on: d.liked }" @click="like(d)">👍 {{ formatCount(d.likes) }}</button>
-            <button @click="userStore.showToast('演示项目：评论功能在视频页体验哦~')">💬 {{ formatCount(d.comments) }}</button>
-            <button @click="userStore.showToast('演示项目：转发功能未开放~')">🔗 转发</button>
+            <button :class="{ on: d.liked }" @click="like(d)">
+              <AiIcon><Pointer /></AiIcon> {{ formatCount(d.likes) }}
+            </button>
+            <button @click="userStore.showToast('评论功能在视频页体验哦')">
+              <AiIcon><Comment /></AiIcon> {{ formatCount(d.comments) }}
+            </button>
+            <button @click="userStore.showToast('转发功能未开放')">
+              <AiIcon><Share /></AiIcon> 转发
+            </button>
           </div>
         </article>
 
@@ -95,7 +101,7 @@ onMounted(() => load(true))
 
       <aside class="side">
         <div class="side-card">
-          <h4>🔥 热门话题</h4>
+          <h4><AiIcon><Histogram /></AiIcon> 热门话题</h4>
           <ul>
             <li v-for="(t, i) in ['#新番速览', '#装机避坑', '#深夜食堂', '#健身30天', '#镜头语言']" :key="t">
               <span class="no">{{ i + 1 }}</span>{{ t }}
@@ -103,11 +109,11 @@ onMounted(() => load(true))
           </ul>
         </div>
         <div class="side-card">
-          <h4>✨ 推荐关注</h4>
-          <div v-for="u in [{ n: '影像研究所', f: '🎬' }, { n: '硬核科普局', f: '🔬' }, { n: '熊猫厨房', f: '🐼' }]" :key="u.n" class="reco">
-            <span class="reco-face">{{ u.f }}</span>
-            <span class="reco-name">{{ u.n }}</span>
-            <button class="btn btn-primary btn-round small" @click="userStore.requireLogin() && userStore.showToast('已关注 ' + u.n)">关注</button>
+          <h4><AiIcon><Star /></AiIcon> 推荐关注</h4>
+          <div v-for="u in ['影像研究所', '硬核科普局', '熊猫厨房']" :key="u" class="reco">
+            <span class="reco-face"><AiIcon><UserFilled /></AiIcon></span>
+            <span class="reco-name">{{ u }}</span>
+            <button class="btn btn-primary btn-round small" @click="userStore.requireLogin() && userStore.showToast('已关注 ' + u)">关注</button>
           </div>
         </div>
       </aside>
@@ -150,7 +156,7 @@ onMounted(() => load(true))
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -198,14 +204,14 @@ onMounted(() => load(true))
 }
 
 .video-box {
-  background: #f7f8fa;
+  background: var(--surface-0);
   border-radius: 8px;
   padding: 12px 14px;
   cursor: pointer;
 }
 
 .video-box:hover {
-  background: #f1f2f3;
+  background: var(--surface-sunken);
 }
 
 .vt {
@@ -224,7 +230,7 @@ onMounted(() => load(true))
   gap: 26px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid #f1f2f3;
+  border-top: 1px solid var(--surface-sunken);
 }
 
 .actions button {
@@ -281,7 +287,7 @@ onMounted(() => load(true))
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;

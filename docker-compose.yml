@@ -1,20 +1,62 @@
 # 一条命令跑起来：docker compose up -d
 # 然后浏览器打开 http://localhost:8080
+# 敏感信息（数据库密码）从 .env 读取（复制 .env.example 为 .env），不要写死在这里。
+# （MySQL + 后端 + 前端静态资源都在里面；数据库连不上时后端会自动降级为内存模式）
 
 services:
+  # ---------- MySQL ----------
+  mysql:
+    image: mysql:8.0
+    container_name: bili-mysql
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD:?请先复制 .env.example 为 .env 并设置 DB_PASSWORD}"
+      MYSQL_DATABASE: bili_clone
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      # 想用本机客户端连容器里的库时打开这一行
+      - "13306:3306"
+    volumes:
+      - bili-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # ---------- 后端 + 前端静态资源 ----------
   bili-web:
     build: .
     image: bili-web:latest
     container_name: bili-web
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       TZ: Asia/Shanghai
       JAVA_OPTS: "-Xms128m -Xmx512m -Dfile.encoding=UTF-8"
+      # 连容器里的 MySQL（application.yml 会读取这些环境变量）
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: bili_clone
+      DB_USER: root
+      DB_PASSWORD: "${DB_PASSWORD:?请先复制 .env.example 为 .env 并设置 DB_PASSWORD}"
+      # 容器内上传目录（与 volume 对应；用绝对路径避免两份 uploads）
+      BILI_UPLOAD_DIR: /app/uploads
+      # 开发模式：邮箱验证码打印到控制台 / 接口返回 devCode
+      BILI_DEV_MODE: "true"
+      # 容器里没有 ffmpeg 时会自动降级为渐变占位封面，不影响页面
+      BILI_GENERATE_SAMPLES: "true"
     volumes:
-      # 保存用户资料 / 上传的头像，容器删了也不会丢
+      # 保存用户资料 / 上传的头像 / 投稿视频 / FFmpeg 封面帧，容器删了也不会丢
       - bili-uploads:/app/uploads
     restart: unless-stopped
 
 volumes:
   bili-uploads:
+  bili-mysql:

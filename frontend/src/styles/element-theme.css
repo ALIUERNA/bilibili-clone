@@ -1,0 +1,273 @@
+/* ==========================================================================
+   a哩a哩 · Element Plus 主题桥接
+   ==========================================================================
+
+   问题
+   ----
+   Element Plus 组件（轮播、对话框、骨架屏、消息提示、进度条、气泡卡片…）
+   默认是官方的「Element 蓝」#409eff，和极光品牌色放一起会明显串味。
+
+   做法
+   ----
+   不引入 SCSS、不重新编译组件库，只用 CSS 变量覆盖：
+   把 EP 的 --el-* 变量全部映射到 tokens.css 里那套设计令牌上。
+
+   为什么选择器写成 html:root 而不是 :root
+   -----------------------------------------
+   EP 自己的样式里也是在 :root 上定义这批变量，两者特异度相同，
+   谁后加载谁生效——而按需引入时 EP 的 CSS 是跟着组件走的，加载顺序不稳定。
+   html:root 是 (0,1,1)，比 :root 的 (0,1,0) 高一级，
+   这样无论加载顺序如何，品牌色都稳定生效。
+
+   明暗两套值都在这里，暗色跟 .theme-dark 一起切换。
+   ========================================================================== */
+
+html:root {
+  /* ---------------- 语义色：直接用品牌色系 ---------------- */
+  --el-color-primary: #6e56f8;
+  --el-color-primary-light-3: #9a89fa;
+  --el-color-primary-light-5: #b6aafc;
+  --el-color-primary-light-7: #d4ccfd;
+  --el-color-primary-light-8: #e2ddfe;
+  --el-color-primary-light-9: #f0eefe;
+  --el-color-primary-dark-2: #5845c6;
+
+  --el-color-success: #2dbe8b;
+  --el-color-success-light-3: #6cd2ae;
+  --el-color-success-light-5: #96dec5;
+  --el-color-success-light-7: #c0ecdc;
+  --el-color-success-light-8: #d5f2e8;
+  --el-color-success-light-9: #eaf8f3;
+  --el-color-success-dark-2: #24986f;
+
+  --el-color-warning: #e8b44a;
+  --el-color-warning-light-3: #efca80;
+  --el-color-warning-light-5: #f4daa4;
+  --el-color-warning-light-7: #f8e8c9;
+  --el-color-warning-light-8: #faf0db;
+  --el-color-warning-light-9: #fdf8ed;
+  --el-color-warning-dark-2: #ba903b;
+
+  --el-color-danger: #f5455c;
+  --el-color-danger-light-3: #f87d8d;
+  --el-color-danger-light-5: #faa2ae;
+  --el-color-danger-light-7: #fcc7ce;
+  --el-color-danger-light-8: #fddade;
+  --el-color-danger-light-9: #feecef;
+  --el-color-danger-dark-2: #c4374a;
+
+  --el-color-error: #f5455c;
+  --el-color-error-light-3: #f87d8d;
+  --el-color-error-light-5: #faa2ae;
+  --el-color-error-light-7: #fcc7ce;
+  --el-color-error-light-8: #fddade;
+  --el-color-error-light-9: #feecef;
+  --el-color-error-dark-2: #c4374a;
+
+  --el-color-info: #8a9099;
+  --el-color-info-light-3: #adb1b8;
+  --el-color-info-light-5: #c4c8cc;
+  --el-color-info-light-7: #dcdee0;
+  --el-color-info-light-8: #e8e9eb;
+  --el-color-info-light-9: #f3f4f5;
+  --el-color-info-dark-2: #6e737a;
+
+  /* ---------------- 文字 ---------------- */
+  --el-text-color-primary: var(--ink-1);
+  --el-text-color-regular: var(--ink-2);
+  --el-text-color-secondary: var(--ink-3);
+  --el-text-color-placeholder: var(--ink-4);
+  --el-text-color-disabled: var(--ink-4);
+  --el-text-color-primary-inverse: #ffffff;
+
+  /* ---------------- 边框 ---------------- */
+  --el-border-color: var(--line-strong);
+  --el-border-color-light: var(--line);
+  --el-border-color-lighter: var(--line-2);
+  --el-border-color-extra-light: var(--line-2);
+  --el-border-color-dark: var(--line-strong);
+  --el-border-color-darker: var(--line-strong);
+  --el-border-color-hover: var(--brand-300);
+
+  /* ---------------- 填充 ---------------- */
+  --el-fill-color: var(--surface-sunken);
+  --el-fill-color-light: var(--surface-2);
+  --el-fill-color-lighter: var(--surface-2);
+  --el-fill-color-extra-light: var(--surface-2);
+  --el-fill-color-dark: var(--line);
+  --el-fill-color-darker: var(--line-strong);
+  --el-fill-color-blank: var(--surface-1);
+
+  /* ---------------- 背景 ---------------- */
+  --el-bg-color: var(--surface-1);
+  --el-bg-color-page: var(--surface-0);
+  --el-bg-color-overlay: var(--surface-3);
+  --el-mask-color: rgba(20, 22, 26, 0.5);
+  --el-mask-color-extra-light: rgba(20, 22, 26, 0.18);
+
+  /* ---------------- 圆角 / 字体，跟设计令牌对齐 ---------------- */
+  --el-border-radius-base: var(--r-sm);
+  --el-border-radius-small: var(--r-xs);
+  --el-border-radius-round: var(--r-full);
+  --el-font-size-base: var(--fs-base);
+  --el-font-family: var(--font-sans);
+
+  /* ---------------- 阴影 ---------------- */
+  --el-box-shadow: var(--sd-2);
+  --el-box-shadow-light: var(--sd-1);
+  --el-box-shadow-lighter: var(--sd-1);
+  --el-box-shadow-dark: var(--sd-3);
+
+  --el-transition-duration: var(--dur-base);
+  --el-disabled-bg-color: var(--surface-sunken);
+  --el-disabled-text-color: var(--ink-4);
+  --el-disabled-border-color: var(--line);
+}
+
+/* ==========================================================================
+   暗色：EP 的 light-N 在暗色下语义反过来（越"浅"越靠近背景），
+   所以这里重新算一遍，混色基底用的是本站的暗色卡片色。
+
+   选择器必须写成 html:root.theme-dark —— 上面的亮色用的是 html:root(0,1,1)，
+   如果这里只写 .theme-dark(0,1,0) 会永远被亮色压住，暗色主题就失效了。
+   ========================================================================== */
+
+html:root.theme-dark,
+html:root[data-theme='dark'] {
+  --el-color-primary: #8e7bff;
+  --el-color-primary-light-3: #6a5cc4;
+  --el-color-primary-light-5: #4f4793;
+  --el-color-primary-light-7: #373465;
+  --el-color-primary-light-8: #2c2c4e;
+  --el-color-primary-light-9: #222338;
+  --el-color-primary-dark-2: #a695ff;
+
+  --el-color-success: #3fd39c;
+  --el-color-success-light-3: #329a76;
+  --el-color-success-light-5: #29755d;
+  --el-color-success-light-7: #205044;
+  --el-color-success-light-8: #1d3f38;
+  --el-color-success-light-9: #1a2e2c;
+  --el-color-success-dark-2: #65dcb0;
+
+  --el-color-warning: #f0c05c;
+  --el-color-warning-light-3: #b08f47;
+  --el-color-warning-light-5: #856e3b;
+  --el-color-warning-light-7: #594e30;
+  --el-color-warning-light-8: #443d2a;
+  --el-color-warning-light-9: #2e2b24;
+  --el-color-warning-dark-2: #f3cd7d;
+
+  --el-color-danger: #ff6076;
+  --el-color-danger-light-3: #b84a59;
+  --el-color-danger-light-5: #8a3b46;
+  --el-color-danger-light-7: #5c2d35;
+  --el-color-danger-light-8: #45262e;
+  --el-color-danger-light-9: #2e2027;
+  --el-color-danger-dark-2: #ff8091;
+
+  --el-color-error: #ff6076;
+  --el-color-error-light-3: #b84a59;
+  --el-color-error-light-5: #8a3b46;
+  --el-color-error-light-7: #5c2d35;
+  --el-color-error-light-8: #45262e;
+  --el-color-error-light-9: #2e2027;
+  --el-color-error-dark-2: #ff8091;
+
+  --el-color-info: #a8aeb8;
+  --el-color-info-light-3: #7b8089;
+  --el-color-info-light-5: #5b6067;
+  --el-color-info-light-7: #40444a;
+  --el-color-info-light-8: #33373d;
+  --el-color-info-light-9: #262a30;
+  --el-color-info-dark-2: #b9bec6;
+
+  --el-text-color-primary-inverse: #14161a;
+  --el-border-color-hover: var(--brand-300);
+  --el-mask-color: rgba(0, 0, 0, 0.62);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.26);
+
+  --el-box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --el-box-shadow-light: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --el-box-shadow-lighter: 0 1px 6px rgba(0, 0, 0, 0.34);
+  --el-box-shadow-dark: 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* ==========================================================================
+   细节修正：EP 默认样式和本站风格不一致的地方
+   ========================================================================== */
+
+/* 轮播指示器：默认是小方块，改成品牌渐变胶囊 */
+.el-carousel__indicator .el-carousel__button {
+  width: 18px;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 1;
+  transition: width var(--dur-base) var(--ease-out), background var(--dur-base);
+}
+
+.el-carousel__indicator.is-active .el-carousel__button {
+  width: 30px;
+  background: #fff;
+}
+
+/* 空状态：文案层级压低一点，别抢主内容 */
+.el-empty__description p {
+  color: var(--ink-3);
+  font-size: var(--fs-sm);
+}
+
+/* 骨架屏：用本站的加载色，暗色下也不会突兀 */
+.el-skeleton__item {
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 25%,
+    var(--line-2) 37%,
+    var(--surface-sunken) 63%
+  );
+  background-size: 400% 100%;
+}
+
+/* 气泡卡片 / 下拉：圆角和阴影统一 */
+.el-popper.is-light {
+  border-radius: var(--r-md);
+  border-color: var(--line);
+  box-shadow: var(--sd-3);
+}
+
+.el-popper.is-dark {
+  border-radius: var(--r-sm);
+  background: var(--ink-1);
+  color: var(--surface-1);
+}
+
+.el-popper.is-dark .el-popper__arrow::before {
+  background: var(--ink-1);
+}
+
+/* 对话框：去掉默认的 1px 描边，改用更柔和的投影 */
+.el-dialog {
+  border-radius: var(--r-lg);
+  box-shadow: var(--sd-4);
+}
+
+/* 回到顶部：品牌渐变 + 圆润一点 */
+.el-backtop {
+  --el-backtop-bg-color: var(--surface-1);
+  --el-backtop-hover-bg-color: var(--brand-50);
+  --el-backtop-text-color: var(--brand-500);
+  border-radius: var(--r-full);
+  box-shadow: var(--sd-3);
+}
+
+/* 面包屑 */
+.el-breadcrumb__inner,
+.el-breadcrumb__separator {
+  color: var(--ink-3);
+  font-weight: var(--fw-normal);
+}
+
+.el-breadcrumb__inner.is-link:hover {
+  color: var(--brand-600);
+}

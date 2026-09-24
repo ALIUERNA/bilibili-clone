@@ -1,31 +1,34 @@
 import { defineStore } from 'pinia'
-import { api } from '../api'
-
-/**
- * 说明：下面用到的 ElMessage 由 unplugin-auto-import 按需自动引入
- * （见 vite.config.js），这样打包时只带上消息组件，不会把整个 Element Plus 拉进来。
- */
+import { api, setToken, getToken } from '../api'
+import { toast } from '../ui/toast'
 
 /**
  * 登录用户状态（Pinia）。
  *
- * - 昵称 / 头像 / 等级 / 经验 / 硬币 / 签到 都由后端保存（uploads/profile.json），
- *   刷新页面、重启服务都不会丢。
+ * - 真正的账号体系在后端：账号密码（图形验证码）/ 邮箱验证码 / 二维码 三种登录方式；
+ *   登录成功后拿到 token，存在 localStorage，所有请求自动带上 Authorization 头。
+ * - 昵称 / 头像 / 等级 / 经验 / 硬币 / 签到 都存在 MySQL（users 表）。
  * - 这里额外维护「经验 +N」的飘字动画队列和升级特效。
  */
 export const useUserStore = defineStore('user', {
   state: () => ({
     user: JSON.parse(localStorage.getItem('bili-user') || 'null'),
-    token: localStorage.getItem('bili-token') || '',
+    token: getToken(),
+    /** 是否真正登录过（/user/me 返回 login=false 说明当前只是游客用的演示账号） */
+    loggedIn: !!getToken(),
+    /** 会话版本号：登录/退出/失效时 +1，用于丢弃过期的 /user/me 响应 */
+    sessionSeq: 0,
     loginVisible: false,
     profileVisible: false,
+    loginRedirect: '',
     toast: '',
-    expFloats: [],   // [{ id, text, kind }]
-    levelUp: false   // 升级特效开关
+    expFloats: [], // [{ id, text, kind }]
+    levelUp: false, // 升级特效开关
+    authStatus: { mysqlMode: true, devMode: true }
   }),
 
   getters: {
-    isLogin: (state) => !!state.user,
+    isLogin: (state) => !!state.loggedIn && !!state.user,
 
     /** 经验条百分比 */
     expPercent: (state) => {
@@ -43,8 +46,14 @@ export const useUserStore = defineStore('user', {
   },
 
   actions: {
-    openLogin() {
+    // ---------------- 弹窗控制 ----------------
+    openLogin(redirect = '') {
+      this.loginRedirect = redirect || ''
       this.loginVisible = true
+    },
+
+    closeLogin() {
+      this.loginVisible = false
     },
 
     openProfile() {
@@ -60,48 +69,150 @@ export const useUserStore = defineStore('user', {
       this.profileVisible = false
     },
 
-    requireLogin() {
+    requireLogin(redirect = '') {
       if (this.isLogin) return true
-      this.openLogin()
+      this.openLogin(redirect)
       this.showToast('请先登录哦~')
       return false
     },
 
-    async login() {
-      const res = await api.login()
-      this.setUser(res.user)
-      this.token = res.token
-      localStorage.setItem('bili-token', res.token)
+    // ---------------- 会话 ----------------
+    /** 登录成功：把后端返回的 token + user 存下来 */
+    setSession(res) {
+      if (!res || !res.user) return
+      this.sessionSeq += 1
+      this.user = res.user
+      this.loggedIn = true
+      if (res.token) {
+        this.token = res.token
+        setToken(res.token)
+      }
+      this.persistUser()
+    },
+
+    /** 清空本地会话（退出登录 / token 失效时用） */
+    clearSession() {
+      this.sessionSeq += 1
+      this.user = null
+      this.token = ''
+      this.loggedIn = false
+      setToken('')
+      try {
+        localStorage.removeItem('bili-user')
+      } catch (e) {
+        /* ignore */
+      }
+    },
+
+    persistUser() {
+      try {
+        localStorage.setItem('bili-user', JSON.stringify(this.user))
+      } catch (e) {
+        /* ignore */
+      }
+    },
+
+    /** 读取后端登录环境（数据库是否可用、是否开发模式） */
+    async loadAuthStatus() {
+      try {
+        const res = await api.auth.status()
+        this.authStatus = { ...this.authStatus, ...res }
+      } catch (e) {
+        /* 后端没起来就不管 */
+      }
+      return this.authStatus
+    },
+
+    /** 账号密码 + 图形验证码登录 */
+    async loginWithPassword({ account, password, captchaKey, captchaCode }) {
+      const res = await api.auth.loginPassword({ account, password, captchaKey, captchaCode })
+      if (!res.success) {
+        return res
+      }
+      this.setSession(res)
       this.loginVisible = false
       this.showToast(`欢迎回来，${res.user.name}！`)
+      await this.afterLogin()
+      return res
+    },
+
+    /** 邮箱验证码登录（邮箱没注册过会自动创建账号） */
+    async loginWithEmail({ email, code }) {
+      const res = await api.auth.loginEmail({ email, code })
+      if (!res.success) {
+        return res
+      }
+      this.setSession(res)
+      this.loginVisible = false
+      this.showToast(res.message || `欢迎回来，${res.user.name}！`)
+      await this.afterLogin()
+      return res
+    },
+
+    /** 二维码确认后，前端轮询拿到 token 时调用 */
+    async loginWithQr(payload) {
+      this.setSession(payload)
+      this.loginVisible = false
+      this.showToast('扫码登录成功，欢迎回来！')
+      await this.afterLogin()
+    },
+
+    async afterLogin() {
+      const redirect = this.loginRedirect
+      this.loginRedirect = ''
+      // 等 /user/me 回来再放行跳转，避免游客响应/竞态把刚建立的会话冲掉
+      await this.refresh()
+      return redirect
+    },
+
+    /** 演示账号一键登录（保底入口：数据库还没准备好时也能体验） */
+    async login() {
+      const res = await api.login()
+      this.setSession(res)
+      this.loginVisible = false
+      this.showToast(`欢迎回来，${res.user?.name || '同学'}！`)
       return res.user
     },
 
-    logout() {
-      this.user = null
-      this.token = ''
-      localStorage.removeItem('bili-user')
-      localStorage.removeItem('bili-token')
+    async logout() {
+      try {
+        await api.auth.logout()
+      } catch (e) {
+        /* 忽略网络错误 */
+      }
+      this.clearSession()
       this.showToast('已退出登录')
     },
 
     setUser(user) {
-      if (!user) return
+      if (!user || !this.loggedIn) return
       this.user = { ...(this.user || {}), ...user }
-      localStorage.setItem('bili-user', JSON.stringify(this.user))
+      this.persistUser()
     },
 
     /** 从后端拉一次最新资料（等级经验可能有变化） */
     async refresh() {
-      if (!this.isLogin) return
+      const seq = this.sessionSeq
       try {
         const res = await api.me()
-        if (res?.user) this.setUser(res.user)
+        // 期间又登录/退出过，这次响应已经过期，直接丢弃
+        if (seq !== this.sessionSeq) return
+        if (res?.login === true && res.user && this.token) {
+          this.user = res.user
+          this.loggedIn = true
+          this.persistUser()
+          return
+        }
+        // 后端明确表示当前是游客/令牌失效：清掉本地登录态，但绝不把演示账号写进本地
+        if (res && res.login === false) {
+          this.clearSession()
+        }
       } catch (e) {
-        /* 后端没起来就先用本地缓存 */
+        /* 网络异常时保留本地会话，等下一次刷新 */
       }
     },
 
+    // ---------------- 经验 / 等级 ----------------
     /**
      * 把后端返回的经验变动应用到本地，并弹一个「+N 经验」飘字。
      * payload 形如 { expGain: 5, level: 5, exp: 3865, expMax: 4800, levelUp: false }
@@ -123,7 +234,6 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    /** 屏幕上飘一个「+5 经验」 */
     pushExpFloat(text, kind = 'exp') {
       const id = Date.now() + Math.random()
       this.expFloats.push({ id, text, kind })
@@ -132,16 +242,15 @@ export const useUserStore = defineStore('user', {
       }, 1600)
     },
 
-    /** 升级特效 */
     playLevelUp(level) {
       this.levelUp = true
-      this.showToast(`🎉 恭喜升级！你现在是 Lv${level} 啦`)
+      this.showToast(`恭喜升级！你现在是 Lv${level} 啦`)
       setTimeout(() => {
         this.levelUp = false
       }, 2600)
     },
 
-    /** 修改昵称 / 签名 */
+    // ---------------- 资料 ----------------
     async updateProfile({ name, sign }) {
       const res = await api.updateProfile({ name, sign })
       if (res?.user) this.setUser(res.user)
@@ -149,7 +258,6 @@ export const useUserStore = defineStore('user', {
       return res
     },
 
-    /** 上传头像（选文件后立刻上传，页面马上就能看到新头像） */
     async uploadAvatar(file) {
       if (!file) return
       const res = await api.uploadAvatar(file)
@@ -160,7 +268,6 @@ export const useUserStore = defineStore('user', {
       return res
     },
 
-    /** 改回 emoji 头像 */
     async clearAvatar() {
       const res = await api.clearAvatar()
       if (res?.user) this.setUser(res.user)
@@ -168,7 +275,6 @@ export const useUserStore = defineStore('user', {
       return res
     },
 
-    /** 每日签到 */
     async checkin() {
       const res = await api.checkin()
       if (res?.user) this.setUser(res.user)
@@ -180,15 +286,10 @@ export const useUserStore = defineStore('user', {
       return res
     },
 
-    /** 全局提示：用 Element Plus 的 Message，统一风格（粉色边框呼应 B 站） */
-    showToast(text) {
+    /** 全局提示：走 a哩a哩 自己的轻量 toast（见 src/ui/toast.js） */
+    showToast(text, type = 'info') {
       this.toast = text
-      ElMessage({
-        message: text,
-        duration: 2200,
-        grouping: true,
-        customClass: 'bili-message'
-      })
-    },
+      toast(text, { type })
+    }
   }
 })

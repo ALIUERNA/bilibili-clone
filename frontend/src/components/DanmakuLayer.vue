@@ -140,9 +140,9 @@ const items = computed(() => {
 }
 
 .danmaku-item.self {
-  border: 1px solid #fb7299;
+  border: 1px solid var(--brand-400);
   border-radius: 4px;
   padding: 0 4px;
-  box-shadow: 0 0 6px rgba(251, 114, 153, 0.6);
+  box-shadow: 0 0 6px rgba(110, 86, 248, 0.6);
 }
 </style>

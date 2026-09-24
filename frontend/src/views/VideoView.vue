@@ -36,6 +36,16 @@ const actions = ref({
 })
 
 const upFans = ref(0)
+/** 播放进度上报节流（每 15 秒写一次数据库，个人中心的「继续观看」用的就是它） */
+let lastReportAt = 0
+
+/** 播放器每 5 秒会 emit 一次 progress，这里节流后写回后端 */
+function onProgress(sec) {
+  const now = Date.now()
+  if (now - lastReportAt < 15000 || !video.value?.id) return
+  lastReportAt = now
+  api.reportProgress(video.value.id, Math.round(sec)).catch(() => {})
+}
 
 async function load(id) {
   loading.value = true
@@ -43,6 +53,10 @@ async function load(id) {
   activeTab.value = 'intro'
   try {
     const detail = await api.video(id)
+    // 接口 200 但返回空数据（视频被删/数据异常）也按「视频不见了」处理
+    if (!detail || !detail.id) {
+      throw new Error('EMPTY_VIDEO')
+    }
     video.value = detail
     actions.value = {
       likes: detail.likes,
@@ -60,6 +74,7 @@ async function load(id) {
       upFans.value = space?.up?.fans || 0
     }
     api.addView(id).catch(() => {})
+    lastReportAt = 0
 
     const [rel, cmt] = await Promise.all([
       api.related(id, 14).catch(() => []),
@@ -98,13 +113,13 @@ async function doAction(type) {
       return
     }
     if (type === 'share') {
-      userStore.showToast('演示项目：链接已复制（假装）')
+      userStore.showToast('链接已复制')
       return
     }
     userStore.showToast(
-      type === 'like' ? (res.liked ? '点赞成功 👍' : '已取消点赞') :
-      type === 'coin' ? (res.coined ? '投币成功 🪙' : '已退回硬币') :
-      res.favored ? '已收藏到默认收藏夹 ⭐' : '已取消收藏'
+      type === 'like' ? (res.liked ? '点赞成功' : '已取消点赞') :
+      type === 'coin' ? (res.coined ? '投币成功' : '已退回硬币') :
+      res.favored ? '已收藏到默认收藏夹' : '已取消收藏'
     )
   } catch (e) {
     userStore.showToast('操作失败，请稍后再试')
@@ -115,7 +130,7 @@ async function doAction(type) {
 const particles = ref([])
 
 function burst() {
-  const emojis = ['💗', '⭐', '🪙', '✨']
+  const particleIcons = ['StarFilled', 'Coin', 'Pointer', 'MagicStick']
   particles.value = Array.from({ length: 14 }, (_, i) => {
     const angle = (Math.PI * 2 * i) / 14 + Math.random() * 0.3
     const dist = 46 + Math.random() * 46
@@ -123,7 +138,7 @@ function burst() {
       id: i + Math.random(),
       x: Math.cos(angle) * dist,
       y: Math.sin(angle) * dist,
-      emoji: emojis[i % emojis.length]
+      icon: particleIcons[i % particleIcons.length]
     }
   })
   setTimeout(() => {
@@ -136,7 +151,7 @@ async function triple() {
   if (!actions.value.liked) await doAction('like')
   if (!actions.value.coined) await doAction('coin')
   if (!actions.value.favored) await doAction('fav')
-  userStore.showToast('一键三连成功，感谢支持！(๑•̀ㅂ•́)و✧')
+  userStore.showToast('一键三连成功，感谢支持！')
   burst()
 }
 
@@ -204,9 +219,10 @@ function goUp() {
       <div class="skeleton skeleton-line short"></div>
     </div>
 
-    <!-- 视频不存在 -->
-    <div v-else-if="notFound" class="empty-wrap">
-      <el-empty description="视频不见了，可能已经被 UP 主删除，或者链接不对">
+    <!-- 视频不存在 / 加载失败 / 接口返回空 -->
+    <div v-else-if="notFound || !video || !video.id" class="empty-wrap">
+      <el-empty description="视频已经不见了OVO">
+        <p class="empty-sub">可能已经被 UP 主删除，或者链接不对</p>
         <button class="btn btn-primary btn-round" @click="$router.push('/')">回首页看看</button>
       </el-empty>
     </div>
@@ -214,14 +230,30 @@ function goUp() {
     <div v-else class="layout">
       <!-- ============ 左列 ============ -->
       <div class="main-col">
-        <PlayerView :video="video" :danmaku-list="danmakuList" @send-danmaku="sendDanmaku" />
+        <PlayerView
+          :video="video"
+          :danmaku-list="danmakuList"
+          @send-danmaku="sendDanmaku"
+          @progress="onProgress"
+        />
+
+        <!-- 封面帧 & 媒体状态 -->
+        <div v-if="video.coverUrl" class="cover-strip">
+          <img :src="video.coverUrl" class="cover-thumb" alt="视频封面帧" />
+          <div class="cover-meta">
+            <span class="tag tag-pink">封面帧</span>
+            <span class="muted">
+              {{ video.playable ? '在线播放 · 支持拖动进度' : '该稿件暂无视频文件，展示封面图' }}
+            </span>
+          </div>
+        </div>
 
         <!-- 标题与统计 -->
         <h1 class="v-title">{{ video.title }}</h1>
         <div class="v-stats">
-          <span>▶ {{ viewText }} 播放</span>
-          <span>💬 {{ danmakuText }} 弹幕</span>
-          <span>{{ formatDate(video.pubTime) }}</span>
+          <span><AiIcon><VideoPlay /></AiIcon> {{ viewText }} 播放</span>
+          <span><AiIcon><ChatDotRound /></AiIcon> {{ danmakuText }} 弹幕</span>
+          <span><AiIcon><Clock /></AiIcon> 发布于 {{ formatDate(video.pubTime) }}</span>
           <span class="bvid">{{ video.bvid }}</span>
           <span class="tag tag-pink">{{ video.category }}</span>
         </div>
@@ -230,31 +262,30 @@ function goUp() {
         <div class="action-bar">
           <div class="triple">
             <button class="act-btn" :class="{ on: actions.liked }" @click="doAction('like')">
-              <span class="act-ico">👍</span>
+              <span class="act-ico"><AiIcon><Pointer /></AiIcon></span>
               <span class="act-num">{{ formatCount(actions.likes) }}</span>
             </button>
             <button class="act-btn" :class="{ on: actions.coined }" @click="doAction('coin')">
-              <span class="act-ico">🪙</span>
+              <span class="act-ico"><AiIcon><Coin /></AiIcon></span>
               <span class="act-num">{{ formatCount(actions.coins) }}</span>
             </button>
             <button class="act-btn" :class="{ on: actions.favored }" @click="doAction('fav')">
-              <span class="act-ico">⭐</span>
+              <span class="act-ico"><AiIcon><Star /></AiIcon></span>
               <span class="act-num">{{ formatCount(actions.favorites) }}</span>
             </button>
             <button class="act-btn" @click="doAction('share')">
-              <span class="act-ico">🔗</span>
+              <span class="act-ico"><AiIcon><Share /></AiIcon></span>
               <span class="act-num">{{ formatCount(actions.shares) }}</span>
             </button>
             <span class="triple-wrap">
               <button class="triple-btn" @click="triple">一键三连</button>
               <span class="particles">
-                <span
+                <AiIcon
                   v-for="p in particles"
                   :key="p.id"
                   class="particle"
                   :style="{ '--x': p.x + 'px', '--y': p.y + 'px' }"
-                  >{{ p.emoji }}</span
-                >
+                ><component :is="p.icon" /></AiIcon>
               </span>
             </span>
           </div>
@@ -298,7 +329,7 @@ function goUp() {
               :face-url="userStore.user.faceUrl"
               :size="40"
             />
-            <div v-else class="cmt-avatar">👤</div>
+            <div v-else class="cmt-avatar"><AiIcon :size="20"><UserFilled /></AiIcon></div>
             <div class="cmt-field">
               <textarea
                 v-model="commentText"
@@ -308,7 +339,6 @@ function goUp() {
                 @focus="!userStore.isLogin && userStore.openLogin()"
               ></textarea>
               <div class="cmt-actions">
-                <span class="cmt-emoji">😀 🎉 🍜</span>
                 <button class="btn btn-primary" @click="submitComment">发布</button>
               </div>
             </div>
@@ -331,7 +361,7 @@ function goUp() {
           <h4 class="side-title">小提示</h4>
           <ul>
             <li>空格键：播放 / 暂停</li>
-            <li>← / →：快退 / 快进 5 秒</li>
+            <li>左右方向键：快退 / 快进 5 秒</li>
             <li>F：全屏，Esc 退出</li>
             <li>在弹幕框输入内容即可发弹幕</li>
           </ul>
@@ -363,6 +393,47 @@ function goUp() {
   font-size: 20px;
   line-height: 30px;
   font-weight: 600;
+}
+
+/* 封面帧条：展示 FFmpeg 截出来的真实封面 */
+.cover-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
+}
+
+.cover-thumb {
+  width: 132px;
+  height: 74px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  background: var(--surface-sunken);
+  flex-shrink: 0;
+}
+
+.cover-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--text-3);
+}
+
+@media (max-width: 560px) {
+  .cover-thumb {
+    width: 108px;
+    height: 61px;
+  }
 }
 
 .v-stats {
@@ -410,7 +481,7 @@ function goUp() {
 }
 
 .act-btn:hover {
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   color: var(--bili-blue);
 }
 
@@ -427,7 +498,7 @@ function goUp() {
   height: 32px;
   padding: 0 16px;
   border-radius: 6px;
-  background: linear-gradient(90deg, #ffb3d1, #fb7299);
+  background: var(--grad-brand);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -483,7 +554,7 @@ function goUp() {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -525,7 +596,7 @@ function goUp() {
 }
 
 .follow-btn.on {
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   color: var(--text-2);
 }
 
@@ -571,7 +642,7 @@ function goUp() {
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
-  border-bottom: 1px solid #f1f2f3;
+  border-bottom: 1px solid var(--surface-sunken);
 }
 
 .cmt-head h3 {
@@ -599,7 +670,7 @@ function goUp() {
 }
 
 .cmt-sort button.on {
-  background: #fff0f5;
+  background: var(--brand-50);
   color: var(--bili-pink);
 }
 
@@ -613,7 +684,7 @@ function goUp() {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -647,7 +718,7 @@ function goUp() {
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .cmt-emoji {
@@ -709,6 +780,12 @@ function goUp() {
   background: #fff;
   border-radius: 10px;
   padding: 60px 0;
+}
+
+.empty-sub {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--text-3);
 }
 
 @media (max-width: 1100px) {

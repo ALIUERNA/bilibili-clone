@@ -13,6 +13,15 @@ public class Video {
     public String bvid;              // BV 号，如 BV1xx411c7mD
     public String title;             // 标题
     public String category;          // 所属分区，如「游戏」
+    public String categoryCode;      // 分区 / 内容节点编码，如 game
+
+    /** 真实媒体文件（没有视频文件时为 null，前端会自动用渐变占位图兜底） */
+    public String coverUrl;          // 真实封面帧，例如 /api/files/cover/1.jpg
+    public String posterUrl;         // 播放器封面图
+    public String videoUrl;          // 真实视频文件，例如 /api/files/video/1.mp4
+    public String coverSource;       // FFMPEG_FRAME / UPLOAD / PLACEHOLDER
+    public boolean playable;         // 是否有真实视频文件
+
     public String coverColor1;       // 封面渐变色 1
     public String coverColor2;       // 封面渐变色 2
     public String coverEmoji;        // 封面上的大图标

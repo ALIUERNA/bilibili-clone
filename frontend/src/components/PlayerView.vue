@@ -1,15 +1,18 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEventListener, useFullscreen } from '@vueuse/core'
 import DanmakuLayer from './DanmakuLayer.vue'
+import { api } from '../api'
 import { coverStyle, formatDuration } from '../utils/format'
 
 /**
  * 播放器。
  *
- * 说明：演示项目里没有真实的视频文件，播放进度是用 requestAnimationFrame 模拟出来的，
- * 「画面」用随播放进度变化的渐变动画代替，用来展示弹幕、进度条、倍速等交互。
- * 想接真实视频的话，把 .scene 那一块换成 <video> 标签，把 time 绑定到 video.currentTime 即可。
+ * - 有真实视频文件时（后端 FFmpeg 扫描 / 用户投稿）：用原生 <video> 播放，
+ *   后端 /api/files/video/** 支持 HTTP Range，可以随意拖动进度条；
+ *   播放器封面用 FFmpeg 截出来的真实封面帧（poster）。
+ * - 没有视频文件时：用随进度变化的渐变动画兜底（不会出现大面积空白），
+ *   弹幕、进度、倍速等交互依然可用。
  */
 const props = defineProps({
   video: { type: Object, required: true },
@@ -20,17 +23,26 @@ const emit = defineEmits(['send-danmaku', 'progress'])
 
 const wrapRef = ref(null)
 const barRef = ref(null)
+const videoRef = ref(null)
 
 // 全屏交给 VueUse 的 useFullscreen（浏览器兼容、进入/退出状态都由它维护）
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(wrapRef)
 
+/** 是否有真实视频文件 */
+const hasRealVideo = computed(() => !!props.video?.videoUrl)
+const videoError = ref(false)
+/** 播放器封面：优先真实封面帧，其次渐变兜底 */
+const posterUrl = computed(() => props.video?.posterUrl || props.video?.coverUrl || '')
+
 const time = ref(0)
+const duration = ref(props.video?.duration || 300)
 const playing = ref(false)
 const rate = ref(1)
 const volume = ref(0.6)
 const muted = ref(false)
 const danmakuOn = ref(true)
-const quality = ref('1080P 高码率')
+const quality = ref('自动')
+const sources = ref([])
 const showQuality = ref(false)
 const showSetting = ref(false)
 const danmakuText = ref('')
@@ -49,10 +61,10 @@ const dm = ref({
   area: 'all'
 })
 
-const duration = computed(() => props.video?.duration || 300)
 const progress = computed(() => (duration.value ? Math.min(100, (time.value / duration.value) * 100) : 0))
 const timeText = computed(() => `${formatDuration(time.value)} / ${formatDuration(duration.value)}`)
-const colors = ['#FFFFFF', '#FB7299', '#00AEEC', '#FFF24B', '#FF9900', '#43E97B']
+// 弹幕可选颜色：白 + 品牌紫 / 天青 / 柠檬 / 珊瑚橙 / 薄荷，和后端色板保持一致
+const colors = ['#FFFFFF', '#7C5CFF', '#12B7D6', '#FFF24B', '#FF7A45', '#2DBE8B']
 
 /** 画面配色随进度轻微变化，制造「视频在播放」的感觉 */
 const sceneStyle = computed(() => ({
@@ -60,27 +72,89 @@ const sceneStyle = computed(() => ({
   filter: `hue-rotate(${(time.value % 40) * 3}deg) saturate(1.05)`
 }))
 
+const qualityOptions = computed(() => {
+  const list = [{ label: '自动', value: 'auto' }]
+  for (const s of sources.value) {
+    list.push({ label: s.quality, value: s.quality, path: s.file_path })
+  }
+  if (list.length === 1) {
+    list.push({ label: '1080P', value: '1080P', path: null })
+    list.push({ label: '720P', value: '720P', path: null })
+    list.push({ label: '480P', value: '480P', path: null })
+  }
+  return list
+})
+
+function switchQuality(q) {
+  quality.value = q.label
+  showQuality.value = false
+  const el = videoRef.value
+  if (!el || !q.path) return
+  const current = el.currentTime
+  const wasPlaying = !el.paused
+  el.src = '/api/files/' + String(q.path).replace('videos/', 'video/')
+  el.load()
+  el.currentTime = current
+  if (wasPlaying) el.play().catch(() => {})
+}
+
 // ---------------- 播放时钟 ----------------
 let rafId = null
-let lastTs = 0
+let lastReport = 0
 
-function loop(ts) {
-  if (!lastTs) lastTs = ts
-  const dt = Math.min(0.1, (ts - lastTs) / 1000)
-  lastTs = ts
-  if (playing.value) {
-    time.value = Math.min(duration.value, time.value + dt * rate.value)
+function loop() {
+  const el = videoRef.value
+  if (el) {
+    // 真实视频：进度直接来自 video 元素，拖动 / 倍速交给浏览器处理
+    time.value = el.currentTime || 0
+    if (el.duration && isFinite(el.duration) && el.duration > 0) {
+      duration.value = el.duration
+    }
+    playing.value = !el.paused && !el.ended
+  } else if (playing.value) {
+    // 没有视频文件时的兜底模拟播放
+    time.value = Math.min(duration.value, time.value + 0.05 * rate.value)
     if (time.value >= duration.value) {
       playing.value = false
       time.value = 0
     }
+  }
+  if (Math.abs(time.value - lastReport) > 5) {
+    lastReport = time.value
     emit('progress', time.value)
   }
   rafId = requestAnimationFrame(loop)
 }
 
-onMounted(() => {
+// 倍速 / 音量 / 静音同步到真实 video 元素
+watch([rate, volume, muted], () => {
+  const el = videoRef.value
+  if (!el) return
+  el.playbackRate = rate.value
+  el.volume = volume.value
+  el.muted = muted.value
+})
+
+watch(volume, (v) => {
+  try {
+    localStorage.setItem('bili-volume', String(v))
+  } catch (e) {
+    /* ignore */
+  }
+})
+
+onMounted(async () => {
   rafId = requestAnimationFrame(loop)
+  const saved = Number(localStorage.getItem('bili-volume'))
+  if (!Number.isNaN(saved) && saved >= 0 && saved <= 1) volume.value = saved
+  if (hasRealVideo.value) {
+    try {
+      const list = await api.videoSources(props.video.id)
+      sources.value = Array.isArray(list) ? list : []
+    } catch (e) {
+      sources.value = []
+    }
+  }
 })
 
 onUnmounted(() => cancelAnimationFrame(rafId))
@@ -90,6 +164,17 @@ onUnmounted(() => cancelAnimationFrame(rafId))
 useEventListener(window, 'keydown', onKeydown)
 
 function toggle() {
+  const el = videoRef.value
+  if (el) {
+    if (el.paused) {
+      el.play().catch(() => {
+        videoError.value = true
+      })
+    } else {
+      el.pause()
+    }
+    return
+  }
   if (!playing.value && time.value >= duration.value) time.value = 0
   playing.value = !playing.value
 }
@@ -97,8 +182,25 @@ function toggle() {
 function seekTo(e) {
   const rect = barRef.value.getBoundingClientRect()
   const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-  time.value = ratio * duration.value
+  const target = ratio * duration.value
+  const el = videoRef.value
+  if (el) {
+    try {
+      el.currentTime = target
+    } catch (err) {
+      /* 元数据没加载完时忽略 */
+    }
+  }
+  time.value = target
 }
+
+function seekBy(sec) {
+  const target = Math.min(duration.value, Math.max(0, time.value + sec))
+  const el = videoRef.value
+  if (el) el.currentTime = target
+  time.value = target
+}
+
 
 function startDrag(e) {
   seekTo(e)
@@ -123,9 +225,9 @@ function onKeydown(e) {
     e.preventDefault()
     toggle()
   } else if (e.code === 'ArrowRight') {
-    time.value = Math.min(duration.value, time.value + 5)
+    seekBy(5)
   } else if (e.code === 'ArrowLeft') {
-    time.value = Math.max(0, time.value - 5)
+    seekBy(-5)
   } else if (e.code === 'KeyF') {
     toggleFullscreen()
   }
@@ -169,15 +271,33 @@ const visibleDanmaku = computed(() => {
     @mouseleave="controlsVisible = true"
     @click.self="toggle"
   >
-    <!-- 模拟的视频画面 -->
-    <div class="scene" :style="sceneStyle" @click="toggle">
+    <!-- 真实视频（有视频文件时） -->
+    <video
+      v-if="hasRealVideo && !videoError"
+      ref="videoRef"
+      class="real-video"
+      :src="video.videoUrl"
+      :poster="posterUrl || undefined"
+      playsinline
+      webkit-playsinline
+      preload="metadata"
+      controlslist="nodownload"
+      @click="toggle"
+      @error="videoError = true"
+      @loadedmetadata="(e) => { if (e.target.duration && isFinite(e.target.duration)) duration = e.target.duration }"
+    ></video>
+
+    <!-- 没有视频文件（或加载失败）时的兜底画面：统一提示「视频已经不见了OVO」 -->
+    <div v-if="!hasRealVideo || videoError" class="scene" :style="sceneStyle" @click="toggle">
       <div class="blob b1"></div>
       <div class="blob b2"></div>
       <div class="scene-center">
-        <div class="scene-title">{{ video.coverText }}</div>
+        <div class="scene-title gone-title">视频已经不见了OVO</div>
         <div class="scene-sub">{{ video.category }} · {{ video.upName }}</div>
       </div>
-      <div class="scene-hint">演示播放器 · 画面由动画模拟</div>
+      <div class="scene-hint">
+        {{ videoError ? '视频加载失败' : '该稿件暂无视频文件' }}
+      </div>
     </div>
 
     <!-- 弹幕层 -->
@@ -193,12 +313,14 @@ const visibleDanmaku = computed(() => {
 
     <!-- 中间的大播放按钮 -->
     <transition name="fade">
-      <button v-if="!playing" class="big-play" @click.stop="toggle">▶</button>
+      <button v-if="!playing" class="big-play" @click.stop="toggle">
+        <AiIcon :size="34"><VideoPlay /></AiIcon>
+      </button>
     </transition>
 
     <!-- 顶部标题栏 -->
     <div class="top-mask" :class="{ hide: !controlsVisible }">
-      <span class="dm-count">💬 {{ video.danmakus }}</span>
+      <span class="dm-count"><AiIcon><ChatDotRound /></AiIcon> {{ video.danmakus }}</span>
       <span class="p-title ellipsis">{{ video.title }}</span>
     </div>
 
@@ -218,9 +340,11 @@ const visibleDanmaku = computed(() => {
 
       <div class="bar-row">
         <button class="ctrl" :title="playing ? '暂停' : '播放'" @click="toggle">
-          {{ playing ? '⏸' : '▶' }}
+          <AiIcon :size="18"><VideoPause v-if="playing" /><VideoPlay v-else /></AiIcon>
         </button>
-        <button class="ctrl" title="下一个" @click="emit('send-danmaku', null)">⏭</button>
+        <button class="ctrl" title="下一个" @click="emit('send-danmaku', null)">
+          <AiIcon :size="18"><DArrowRight /></AiIcon>
+        </button>
 
         <span class="time-text">{{ timeText }}</span>
         <span class="spacer"></span>
@@ -253,7 +377,9 @@ const visibleDanmaku = computed(() => {
         </button>
 
         <div class="menu-wrap">
-          <button class="ctrl text" title="弹幕设置" @click="showSetting = !showSetting">⚙</button>
+          <button class="ctrl text" title="弹幕设置" @click="showSetting = !showSetting">
+            <AiIcon :size="18"><Setting /></AiIcon>
+          </button>
           <transition name="fade">
             <div v-if="showSetting" class="setting-panel">
               <div class="set-title">弹幕设置</div>
@@ -290,12 +416,12 @@ const visibleDanmaku = computed(() => {
           <transition name="fade">
             <ul v-if="showQuality" class="quality-panel">
               <li
-                v-for="q in ['1080P 高码率', '1080P', '720P', '480P']"
-                :key="q"
-                :class="{ on: quality === q }"
-                @click="quality = q; showQuality = false"
+                v-for="q in qualityOptions"
+                :key="q.value"
+                :class="{ on: quality === q.label }"
+                @click="switchQuality(q)"
               >
-                {{ q }}
+                {{ q.label }}
               </li>
             </ul>
           </transition>
@@ -308,12 +434,14 @@ const visibleDanmaku = computed(() => {
         </div>
 
         <div class="volume">
-          <button class="ctrl" @click="muted = !muted">{{ muted || volume === 0 ? '🔇' : '🔊' }}</button>
+          <button class="ctrl" @click="muted = !muted">
+            <AiIcon :size="18"><Mute v-if="muted || volume === 0" /><Headset v-else /></AiIcon>
+          </button>
           <input v-model.number="volume" type="range" min="0" max="1" step="0.05" @input="muted = false" />
         </div>
 
         <button class="ctrl" :title="isFullscreen ? '退出全屏 (F)' : '全屏 (F)'" @click="toggleFullscreen">
-          {{ isFullscreen ? '⤡' : '⛶' }}
+          <AiIcon :size="18"><ScaleToOriginal v-if="isFullscreen" /><FullScreen v-else /></AiIcon>
         </button>
       </div>
     </div>
@@ -321,7 +449,7 @@ const visibleDanmaku = computed(() => {
     <!-- 弹幕输入（全屏时的输入条位置提示） -->
     <transition name="fade">
       <div v-if="!controlsVisible" class="tip-floating" @click="wake">
-        点击任意位置显示控制栏 · 空格暂停 · ←/→ 快退快进 · F 全屏
+        点击任意位置显示控制栏 · 空格暂停 · 左右方向键快退快进 · F 全屏
       </div>
     </transition>
   </div>
@@ -338,7 +466,19 @@ const visibleDanmaku = computed(() => {
   user-select: none;
 }
 
-/* ---------- 模拟画面 ---------- */
+/* ---------- 真实视频 ---------- */
+.real-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+  cursor: pointer;
+}
+
+/* ---------- 模拟画面（没有视频文件时的兜底） ---------- */
 .scene {
   position: absolute;
   inset: 0;
@@ -406,6 +546,11 @@ const visibleDanmaku = computed(() => {
   font-size: 54px;
   font-weight: 900;
   letter-spacing: 4px;
+}
+
+.gone-title {
+  font-size: 28px;
+  letter-spacing: 2px;
 }
 
 .scene-sub {

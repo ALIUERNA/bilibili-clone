@@ -80,7 +80,7 @@ public class DataStore {
              "为什么熬夜会让你越来越笨"},
             {"花2万块组装了一台4K剪辑主机，值吗？",
              "把家里的电费账单做成了可视化大屏",
-             "实测：让AI帮我写了一天代码，结果如何",
+             "实测：把旧笔记本改造成家庭服务器，结果如何",
              "2000元的国产手机，能拍出什么水平的视频",
              "自制机械键盘，手感居然比原厂还好"},
             {"每天100个深蹲，30天后发生了什么",
@@ -258,6 +258,7 @@ public class DataStore {
             String[] titles = VIDEO_TITLES[c];
             for (int t = 0; t < titles.length; t++) {
                 Video v = new Video(aid++, titles[t], categoryName);
+                v.categoryCode = com.bili.demo.db.NodeCatalog.codeOfName(categoryName);
                 v.upId = up.id;
                 v.upName = up.name;
                 v.upFace = up.face;
@@ -373,6 +374,32 @@ public class DataStore {
         }
     }
 
+    /**
+     * 媒体扫描完成后重新给轮播选片：
+     * 优先挑「有真实视频 / 真实封面帧」的稿件，这样首页轮播能直接显示真实封面帧。
+     * 如果一条真实视频都没有（没装 FFmpeg），保持原样，用渐变色 + emoji 兜底。
+     */
+    public void reseedBannersForMedia() {
+        List<Video> playable = new ArrayList<>();
+        for (Video v : videos) {
+            if (v.playable && v.coverUrl != null) {
+                playable.add(v);
+            }
+        }
+        if (playable.isEmpty()) {
+            return;
+        }
+        playable.sort((a, b) -> Long.compare(b.views, a.views));
+        for (int i = 0; i < banners.size(); i++) {
+            Video v = playable.get(i % playable.size());
+            Banner b = banners.get(i);
+            b.videoId = v.id;
+            b.emoji = v.coverEmoji;
+            b.color1 = v.coverColor1;
+            b.color2 = v.coverColor2;
+        }
+    }
+
     private void seedBangumi() {
         String[][] defs = {
                 {"星海归途", "#A18CD1", "#FBC2EB", "🌌", "连载中", "日本", "12", "16", "2684000", "9.6", "科幻"},
@@ -380,7 +407,7 @@ public class DataStore {
                 {"剑起长歌", "#F093FB", "#F5576C", "⚔️", "已完结", "国产", "26", "26", "3157000", "9.4", "热血"},
                 {"你的晴天预报", "#84FAB0", "#8FD3F4", "☀️", "连载中", "日本", "10", "13", "987000", "8.9", "日常"},
                 {"山海拾遗录", "#5EE7DF", "#B490CA", "🐉", "连载中", "国产", "15", "24", "1876000", "9.1", "奇幻"},
-                {"机械之心", "#4FACFE", "#00F2FE", "🤖", "已完结", "日本", "24", "24", "2231000", "9.3", "机甲"},
+                {"机械之心", "#4FACFE", "#00F2FE", "⚙️", "已完结", "日本", "24", "24", "2231000", "9.3", "机甲"},
                 {"小镇侦探社", "#FFD3A5", "#FD6585", "🔍", "连载中", "日本", "6", "12", "756000", "8.7", "悬疑"},
                 {"花开彼岸", "#FBC2EB", "#A6C1EE", "🌸", "已完结", "日本", "13", "13", "1654000", "9.0", "恋爱"},
                 {"长安十二时", "#FF9A9E", "#FAD0C4", "🏮", "已完结", "国产", "36", "36", "2987000", "9.5", "历史"},
@@ -437,7 +464,7 @@ public class DataStore {
 
     private void seedHotSearch() {
         hotSearch.addAll(List.of("新番速览", "全BOSS无伤", "装机避坑", "深夜食堂",
-                "国漫崛起", "健身30天", "镜头语言", "AI写代码", "宅舞翻跳", "周末去哪玩"));
+                "国漫崛起", "健身30天", "镜头语言", "独立游戏开发", "宅舞翻跳", "周末去哪玩"));
     }
 
     private String pubAgo(LocalDateTime pub) {
@@ -476,7 +503,7 @@ public class DataStore {
         return null;
     }
 
-    /** 首页推荐：把稿件打散一点，看起来更像个性化推荐 */
+    /** 首页推荐：把稿件打散一点，避免每次都是同样的顺序 */
     public List<Video> recommend(String category) {
         List<Video> list = new ArrayList<>();
         if (category == null || category.isBlank() || "recommend".equals(category)) {
@@ -487,7 +514,7 @@ public class DataStore {
             list.sort((a, b) -> Long.compare(score(b), score(a)));
         } else {
             for (Video v : videos) {
-                if (v.category.equals(category)) {
+                if (category.equals(v.category) || category.equalsIgnoreCase(v.categoryCode)) {
                     list.add(v);
                 }
             }
@@ -500,11 +527,40 @@ public class DataStore {
         return v.views + (long) v.likes * 12 + (long) v.danmakus * 6 + (long) v.favorites * 8;
     }
 
+    /**
+     * 内容节点推荐：按节点编码（game / tech / music …）或中文分区名筛选。
+     * 「推荐 / 热门」这类聚合节点返回全站排序结果。
+     */
+    public List<Video> recommendByNode(String nodeCode, int limit) {
+        List<Video> list = new ArrayList<>();
+        if (nodeCode == null || nodeCode.isBlank() || "recommend".equalsIgnoreCase(nodeCode)) {
+            list.addAll(videos);
+            Collections.shuffle(list, recRnd);
+        } else if ("hot".equalsIgnoreCase(nodeCode)) {
+            list.addAll(videos);
+            list.sort((a, b) -> Long.compare(score(b), score(a)));
+        } else {
+            for (Video v : videos) {
+                boolean hit = nodeCode.equalsIgnoreCase(v.categoryCode)
+                        || nodeCode.equals(v.category)
+                        || (v.category != null && v.category.equalsIgnoreCase(nodeCode));
+                if (hit) {
+                    list.add(v);
+                }
+            }
+            list.sort((a, b) -> Long.compare(score(b), score(a)));
+        }
+        if (limit > 0 && list.size() > limit) {
+            return new ArrayList<>(list.subList(0, limit));
+        }
+        return list;
+    }
+
     /** 相关推荐：优先同分区，不足时用热门补齐 */
     public List<Video> related(Video current, int limit) {
         List<Video> same = new ArrayList<>();
         for (Video v : videos) {
-            if (v.category.equals(current.category) && v.id != current.id) {
+            if (Objects.equals(v.category, current.category) && v.id != current.id) {
                 same.add(v);
             }
         }
@@ -531,12 +587,13 @@ public class DataStore {
         String kw = keyword.trim().toLowerCase();
         List<Video> hit = new ArrayList<>();
         for (Video v : videos) {
-            boolean match = v.title.toLowerCase().contains(kw)
-                    || v.upName.toLowerCase().contains(kw)
-                    || v.category.toLowerCase().contains(kw);
+            boolean match = contains(v.title, kw)
+                    || contains(v.upName, kw)
+                    || contains(v.category, kw)
+                    || contains(v.categoryCode, kw);
             if (!match) {
                 for (String tag : v.tags) {
-                    if (tag.toLowerCase().contains(kw)) {
+                    if (contains(tag, kw)) {
                         match = true;
                         break;
                     }
@@ -548,6 +605,11 @@ public class DataStore {
         }
         hit.sort((a, b) -> Long.compare(score(b), score(a)));
         return hit;
+    }
+
+    /** null 安全的包含判断，避免脏数据把接口打成 500 */
+    private static boolean contains(String text, String kw) {
+        return text != null && text.toLowerCase().contains(kw);
     }
 
     /** 排行榜 */

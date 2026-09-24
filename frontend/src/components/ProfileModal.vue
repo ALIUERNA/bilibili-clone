@@ -2,17 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useUserStore } from '../stores/user'
 import UserAvatar from './UserAvatar.vue'
+import AiModal from '../ui/AiModal.vue'
 
 /**
  * 编辑资料弹窗：改昵称、改签名、上传头像。
  *
- * 外壳用 Element Plus 的 Dialog，上传用 Element Plus 的 Upload（自带拖拽、点击选择、文件校验），
- * 头像选好后立刻上传，页面上马上就能看到效果。
+ * 弹窗壳用自己的 <AiModal>，头像上传用原生 input[type=file] + 拖拽事件，
+ * 不依赖任何组件库：点击或拖拽选图 → 本地预览 → 立刻上传。
  */
 const emit = defineEmits(['close'])
 const store = useUserStore()
 
-const uploadRef = ref(null)
+const fileInput = ref(null)
 const name = ref(store.user?.name || '')
 const sign = ref(store.user?.sign || '')
 const previewUrl = ref('')
@@ -35,9 +36,24 @@ const nameLeft = computed(() => 20 - (name.value || '').length)
 const signLeft = computed(() => 60 - (sign.value || '').length)
 const avatarSrc = computed(() => previewUrl.value || store.user?.faceUrl || '')
 
-/** Element Plus Upload 选完文件后回调 */
-function onFileChange(uploadFile) {
-  const file = uploadFile?.raw
+/** 点击头像区域 → 打开系统选图框 */
+function pickFile() {
+  if (uploading.value) return
+  fileInput.value?.click()
+}
+
+/** 原生 input 选中文件 */
+function onFileChange(e) {
+  const file = e.target?.files?.[0]
+  if (file) handleFile(file)
+  // 清空 value，否则连续选同一个文件不会触发 change
+  if (e.target) e.target.value = ''
+}
+
+/** 拖拽放下文件 */
+function onDrop(e) {
+  dragging.value = false
+  const file = e.dataTransfer?.files?.[0]
   if (file) handleFile(file)
 }
 
@@ -96,32 +112,27 @@ async function save() {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="true"
-    class="modal"
-    width="700px"
-    align-center
-    append-to-body
-    :show-close="false"
-    @close="$emit('close')"
-    @update:model-value="(v) => !v && $emit('close')"
-  >
+  <AiModal class="modal" :width="700" :show-close="false" @close="$emit('close')">
     <div class="profile-body">
-      <button class="close" @click="$emit('close')">✕</button>
+      <button class="close" @click="$emit('close')"><AiIcon><Close /></AiIcon></button>
       <h3 class="title">编辑我的资料</h3>
-      <p class="sub">头像和昵称会保存在服务器上，刷新、重启都不会丢</p>
+      <p class="sub">头像和昵称会保存在服务器上</p>
 
       <div class="body">
-        <!-- 头像上传（Element Plus Upload：支持点击选择 + 拖拽） -->
+        <!-- 头像上传：原生 input + 拖拽，点击和拖入都能选中文件 -->
         <div class="avatar-col">
-          <el-upload
-            ref="uploadRef"
+          <div
             class="avatar-uploader"
-            :auto-upload="false"
-            :show-file-list="false"
-            accept="image/*"
-            drag
-            :on-change="onFileChange"
+            role="button"
+            tabindex="0"
+            aria-label="更换头像，点击选择或拖拽图片到此处"
+            @click="pickFile"
+            @keydown.enter.prevent="pickFile"
+            @keydown.space.prevent="pickFile"
+            @dragenter.prevent="dragging = true"
+            @dragover.prevent="dragging = true"
+            @dragleave.prevent="dragging = false"
+            @drop.prevent="onDrop"
           >
             <div class="drop" :class="{ dragging, uploading }">
               <UserAvatar :face="store.user?.face" :face-url="avatarSrc" :size="110" hover-zoom />
@@ -130,7 +141,14 @@ async function save() {
                 <span v-else>点击 / 拖拽<br />更换头像</span>
               </div>
             </div>
-          </el-upload>
+          </div>
+          <input
+            ref="fileInput"
+            class="file-input"
+            type="file"
+            accept="image/*"
+            @change="onFileChange"
+          />
 
           <div class="hint">
             支持 png / jpg / gif / webp<br />
@@ -175,23 +193,13 @@ async function save() {
         </button>
       </div>
     </div>
-  </el-dialog>
+  </AiModal>
 </template>
 
 <style scoped>
-:deep(.el-dialog) {
-  border-radius: 14px;
-  padding: 0;
-  overflow: visible;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
-}
-
-:deep(.el-dialog__header) {
+/* 隐藏原生文件选择框，视觉上完全由 .drop 承担 */
+.file-input {
   display: none;
-}
-
-:deep(.el-dialog__body) {
-  padding: 0;
 }
 
 .profile-body {
@@ -267,14 +275,14 @@ async function save() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border: 2px dashed #e3e5e7;
+  border: 2px dashed var(--line);
   transition: border-color 0.2s, background 0.2s, transform 0.2s;
 }
 
 .drop:hover,
 .drop.dragging {
   border-color: var(--bili-pink);
-  background: #fff5f8;
+  background: var(--brand-50);
 }
 
 .drop.dragging {
@@ -351,7 +359,7 @@ async function save() {
 .field input:focus,
 .field textarea:focus {
   border-color: var(--bili-pink);
-  box-shadow: 0 0 0 3px rgba(251, 114, 153, 0.14);
+  box-shadow: 0 0 0 3px rgba(110, 86, 248, 0.14);
 }
 
 .counter {
@@ -377,7 +385,7 @@ async function save() {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(120deg, #fff6f9, #f0f9ff);
+  background: linear-gradient(120deg, var(--brand-50), var(--cyan-50));
   border-radius: 10px;
   padding: 12px 14px;
 }

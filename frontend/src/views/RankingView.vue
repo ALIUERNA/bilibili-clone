@@ -9,11 +9,11 @@ const category = ref('全部')
 const list = ref([])
 
 const types = [
-  { key: 'all', name: '综合排行', emoji: '🏆' },
-  { key: 'like', name: '最多点赞', emoji: '👍' },
-  { key: 'coin', name: '最多投币', emoji: '🪙' },
-  { key: 'fav', name: '最多收藏', emoji: '⭐' },
-  { key: 'danmaku', name: '最多弹幕', emoji: '💬' }
+  { key: 'all', name: '综合排行', icon: 'Trophy' },
+  { key: 'like', name: '最多点赞', icon: 'Pointer' },
+  { key: 'coin', name: '最多投币', icon: 'Coin' },
+  { key: 'fav', name: '最多收藏', icon: 'Star' },
+  { key: 'danmaku', name: '最多弹幕', icon: 'ChatDotRound' }
 ]
 
 const categories = computed(() => {
@@ -50,12 +50,12 @@ onMounted(load)
         <h1>排行榜</h1>
         <p>根据播放、点赞、投币、收藏等数据综合计算，看看今天大家都在看什么</p>
       </div>
-      <div class="hero-art">🏆</div>
+      <div class="hero-art"><AiIcon :size="56"><Trophy /></AiIcon></div>
     </section>
 
     <div class="type-tabs">
       <button v-for="t in types" :key="t.key" :class="{ on: type === t.key }" @click="switchType(t.key)">
-        <span>{{ t.emoji }}</span>
+        <AiIcon><component :is="t.icon" /></AiIcon>
         {{ t.name }}
       </button>
     </div>
@@ -105,7 +105,7 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(120deg, #fff1f6, #eaf7ff);
+  background: linear-gradient(120deg, var(--brand-50), var(--cyan-50));
   border-radius: 12px;
   padding: 28px 32px;
   margin-bottom: 18px;
@@ -154,7 +154,7 @@ onMounted(load)
   background: var(--bili-pink);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(251, 114, 153, 0.35);
+  box-shadow: 0 4px 12px rgba(110, 86, 248, 0.35);
 }
 
 .cat-chips {
@@ -177,7 +177,7 @@ onMounted(load)
 }
 
 .chip.on {
-  background: #eaf7ff;
+  background: var(--cyan-50);
   color: var(--bili-blue);
   font-weight: 600;
 }

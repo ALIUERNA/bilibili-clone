@@ -40,7 +40,8 @@ try {
   check('未登录时点赞会弹出登录框', modalShown)
 
   // ---------- 3. 一键登录 ----------
-  await browser.click('.modal .primary')
+  // 登录弹窗默认停在「扫码登录」标签页，演示入口是右侧常驻的 .demo-btn
+  await browser.click('.modal .demo-btn')
   await sleep(1200)
   const loggedIn = await browser.eval(`!!localStorage.getItem('bili-user')`)
   const avatarText = await browser.eval(`(document.querySelector('.topbar .ua .emoji')||{}).innerText||''`)

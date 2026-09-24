@@ -87,11 +87,11 @@ watch(() => route.query.keyword, load)
 
     <!-- 没有输入关键词 -->
     <div v-if="!keyword" class="empty-wrap">
-      <el-empty description="输入关键词，开始发现有趣的内容">
+      <AiEmpty description="输入关键词，开始发现有趣的内容">
         <div class="suggest-tags">
           <button v-for="h in hotSearch" :key="h" class="tag" @click="search(h)">{{ h }}</button>
         </div>
-      </el-empty>
+      </AiEmpty>
     </div>
 
     <template v-else>
@@ -99,15 +99,13 @@ watch(() => route.query.keyword, load)
 
       <div v-if="loading" class="grid">
         <div v-for="i in 8" :key="i">
-          <el-skeleton animated>
-            <template #template>
-              <el-skeleton-item variant="image" class="sk-cover-el" />
-              <div class="sk-lines">
-                <el-skeleton-item variant="text" style="width: 85%" />
-                <el-skeleton-item variant="text" style="width: 50%; margin-top: 10px" />
-              </div>
-            </template>
-          </el-skeleton>
+          <AiSkeleton>
+            <AiSkeletonItem variant="image" class="sk-cover-el" />
+            <div class="sk-lines">
+              <AiSkeletonItem variant="text" width="85%" />
+              <AiSkeletonItem variant="text" width="50%" style="margin-top: 10px" />
+            </div>
+          </AiSkeleton>
         </div>
       </div>
 
@@ -137,7 +135,7 @@ watch(() => route.query.keyword, load)
             />
           </div>
           <div v-else class="empty-wrap">
-            <el-empty description="没有找到相关视频，换个关键词试试？" />
+            <AiEmpty description="没有找到相关视频，换个关键词试试？" />
           </div>
         </section>
       </template>
@@ -162,7 +160,7 @@ watch(() => route.query.keyword, load)
   max-width: 640px;
   height: 44px;
   border-radius: 8px;
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   overflow: hidden;
   padding-left: 16px;
 }
@@ -270,7 +268,7 @@ watch(() => route.query.keyword, load)
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;

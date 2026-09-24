@@ -10,6 +10,7 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const loading = ref(true)
+const notFound = ref(false)
 const up = ref(null)
 const videos = ref([])
 const dynamics = ref([])
@@ -27,12 +28,18 @@ const sortedVideos = computed(() => {
 
 async function load(id) {
   loading.value = true
+  notFound.value = false
   try {
     const res = await api.space(id)
     up.value = res.up
     videos.value = res.videos || []
     dynamics.value = res.dynamics || []
     totalViews.value = res.totalViews || 0
+  } catch (e) {
+    up.value = null
+    videos.value = []
+    dynamics.value = []
+    notFound.value = true
   } finally {
     loading.value = false
   }
@@ -51,18 +58,29 @@ function follow() {
       userStore.showToast(res.followed ? '关注成功~' : '已取消关注')
     })
   } else {
-    userStore.showToast('演示项目：TA 还没有投稿')
+    userStore.showToast('TA 还没有投稿')
   }
 }
 </script>
 
 <template>
   <div class="space-page fade-up">
+    <!-- 用户不存在 / 接口异常 -->
+    <div v-if="notFound" class="space-empty">
+      <el-empty description="用户不存在或已注销">
+        <button class="btn btn-primary btn-round" @click="$router.push('/')">回首页看看</button>
+      </el-empty>
+    </div>
+
+    <template v-else>
     <!-- 顶部横幅 -->
-    <div class="banner" :style="{ backgroundImage: `linear-gradient(120deg, ${up?.face ? '#ffe6ef' : '#eee'}, #e8f4ff)` }">
+    <div class="banner" :style="{ backgroundImage: `linear-gradient(120deg, ${up?.face ? 'var(--brand-100)' : '#eee'}, var(--cyan-50))` }">
       <div class="banner-inner container">
         <div v-if="loading" class="skeleton sk-avatar"></div>
-        <div v-else class="avatar">{{ up?.face || '👤' }}</div>
+        <div v-else class="avatar">
+          <span v-if="up?.face">{{ up.face }}</span>
+          <AiIcon v-else :size="40"><UserFilled /></AiIcon>
+        </div>
 
         <div class="info">
           <h1>{{ up?.name || '加载中...' }}</h1>
@@ -79,8 +97,8 @@ function follow() {
           <button class="btn btn-primary btn-round" @click="follow">
             {{ up?.followed ? '已关注' : '+ 关注' }}
           </button>
-          <button class="btn btn-ghost btn-round" @click="userStore.showToast('演示项目：私信功能未开放~')">
-            ✉️ 发消息
+          <button class="btn btn-ghost btn-round" @click="userStore.showToast('私信功能未开放')">
+            <AiIcon><Message /></AiIcon> 发消息
           </button>
         </div>
       </div>
@@ -89,12 +107,12 @@ function follow() {
     <div class="container body">
       <!-- 左侧 TAB -->
       <aside class="tabs">
-        <button :class="{ on: tab === 'home' }" @click="tab = 'home'">🏠 主页</button>
-        <button :class="{ on: tab === 'dynamic' }" @click="tab = 'dynamic'">📢 动态</button>
-        <button :class="{ on: tab === 'video' }" @click="tab = 'video'">🎬 投稿</button>
-        <button class="disabled" @click="userStore.showToast('演示项目：合集功能未开放~')">📚 合集</button>
+        <button :class="{ on: tab === 'home' }" @click="tab = 'home'"><AiIcon><HomeFilled /></AiIcon> 主页</button>
+        <button :class="{ on: tab === 'dynamic' }" @click="tab = 'dynamic'"><AiIcon><Promotion /></AiIcon> 动态</button>
+        <button :class="{ on: tab === 'video' }" @click="tab = 'video'"><AiIcon><VideoCamera /></AiIcon> 投稿</button>
+        <button class="disabled" @click="userStore.showToast('合集功能未开放')"><AiIcon><Collection /></AiIcon> 合集</button>
         <div class="tab-divider"></div>
-        <button class="disabled" @click="userStore.showToast('演示项目：收藏夹不公开~')">⭐ 收藏夹</button>
+        <button class="disabled" @click="userStore.showToast('收藏夹暂不公开')"><AiIcon><Star /></AiIcon> 收藏夹</button>
       </aside>
 
       <!-- 右侧内容 -->
@@ -141,9 +159,9 @@ function follow() {
               <div class="dyn-vtitle clamp-2">{{ d.videoTitle }}</div>
             </div>
             <div class="dyn-actions">
-              <span>👍 {{ formatCount(d.likes) }}</span>
-              <span>💬 {{ formatCount(d.comments) }}</span>
-              <span>🔗 分享</span>
+              <span><AiIcon><Pointer /></AiIcon> {{ formatCount(d.likes) }}</span>
+              <span><AiIcon><Comment /></AiIcon> {{ formatCount(d.comments) }}</span>
+              <span><AiIcon><Share /></AiIcon> 分享</span>
             </div>
           </article>
         </template>
@@ -161,6 +179,7 @@ function follow() {
         </template>
       </main>
     </div>
+    </template>
   </div>
 </template>
 
@@ -168,6 +187,14 @@ function follow() {
 .banner {
   padding: 30px 0;
   background-size: cover;
+}
+
+.space-page {
+  min-height: 60vh;
+}
+
+.space-empty {
+  padding: 80px 16px;
 }
 
 .banner-inner {
@@ -253,12 +280,12 @@ function follow() {
 }
 
 .tabs button:hover {
-  background: #f6f7f8;
+  background: var(--surface-0);
   color: var(--bili-pink);
 }
 
 .tabs button.on {
-  background: #fff0f5;
+  background: var(--brand-50);
   color: var(--bili-pink);
   font-weight: 600;
 }
@@ -307,7 +334,7 @@ function follow() {
 }
 
 .sort-bar button.on {
-  background: #eaf7ff;
+  background: var(--cyan-50);
   color: var(--bili-blue);
   font-weight: 600;
 }
@@ -331,7 +358,7 @@ function follow() {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -359,12 +386,12 @@ function follow() {
   gap: 12px;
   padding: 8px;
   border-radius: 8px;
-  background: #f7f8fa;
+  background: var(--surface-0);
   cursor: pointer;
 }
 
 .dyn-video:hover {
-  background: #f1f2f3;
+  background: var(--surface-sunken);
 }
 
 .dyn-thumb {

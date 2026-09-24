@@ -6,6 +6,12 @@ package com.bili.demo.model;
 public class User {
 
     public long id;
+    public String username;    // 登录账号（唯一）
+    public String email;       // 邮箱（唯一）
+    public boolean hasPassword; // 是否设置过密码
+    public boolean hasEmail;    // 是否绑定邮箱
+    public String createdAt;    // 注册时间
+    public String lastLoginAt;  // 最后登录时间
     public String name;        // 昵称（可以改）
     public String face;        // 头像 emoji（没上传图片时用这个）
     public String faceUrl;     // 上传的头像图片地址，例如 /api/files/avatar/xxx.png

@@ -1,5 +1,5 @@
 @echo off
-title 哔哩哔哩仿站 - 启动中
+title a哩a哩 - 启动中
 setlocal
 
 set "ROOT=%~dp0"
@@ -19,9 +19,12 @@ echo.
 :NOPORT
 
 echo =====================================================
-echo    哔哩哔哩仿站  Vue 3 + Spring Boot 3
+echo    a哩a哩  Vue 3 + Spring Boot 3
 echo =====================================================
 echo.
+
+if exist "%ROOT%.env" echo [提示] 已检测到 .env，将自动加载其中的数据库 / 邮箱配置。
+if not exist "%ROOT%.env" echo [提示] 未发现 .env，将使用默认配置（可复制 .env.example 为 .env 后修改）。
 
 if not exist "%JAR%" goto NOJAR
 

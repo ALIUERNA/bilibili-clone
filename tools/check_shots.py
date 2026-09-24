@@ -16,7 +16,7 @@ except ImportError:
     print("没有安装 Pillow，跳过像素检查")
     sys.exit(0)
 
-SHOTS = Path(r"C:\Users\24900\Desktop\bilibili-clone\shots")
+SHOTS = Path(__file__).resolve().parents[1] / "shots"
 
 
 def analyze(path: Path):

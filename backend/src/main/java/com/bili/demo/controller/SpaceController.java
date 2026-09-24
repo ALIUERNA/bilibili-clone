@@ -1,9 +1,11 @@
 package com.bili.demo.controller;
 
 import com.bili.demo.data.DataStore;
+import com.bili.demo.db.UserRepository;
 import com.bili.demo.model.Dynamic;
 import com.bili.demo.model.PageResult;
 import com.bili.demo.model.Up;
+import com.bili.demo.model.User;
 import com.bili.demo.model.Video;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,15 +20,20 @@ import java.util.*;
 public class SpaceController {
 
     private final DataStore store;
+    private final UserRepository userRepo;
 
-    public SpaceController(DataStore store) {
+    public SpaceController(DataStore store, UserRepository userRepo) {
         this.store = store;
+        this.userRepo = userRepo;
     }
 
-    /** 个人空间（UP主主页） */
+    /** 个人空间（UP主主页；内置 UP 主之外，也支持真实注册用户） */
     @GetMapping("/spaces/{upId}")
     public ResponseEntity<?> space(@PathVariable long upId) {
         Up up = store.findUp(upId);
+        if (up == null) {
+            up = fromDatabaseUser(upId);
+        }
         if (up == null) {
             return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
         }
@@ -51,6 +58,21 @@ public class SpaceController {
         data.put("dynamics", dyn);
         data.put("totalViews", own.stream().mapToLong(v -> v.views).sum());
         return ResponseEntity.ok(data);
+    }
+
+    /** 真实注册用户（users 表）转成空间页需要的 UP 结构；内存模式下或查不到返回 null */
+    private Up fromDatabaseUser(long id) {
+        User user = userRepo.findById(id).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        Up up = new Up(user.id, user.name, user.face, user.sign);
+        up.fans = user.followers;
+        up.likes = user.likes;
+        up.level = "Lv" + user.level;
+        up.medal = user.medal;
+        up.videoCount = (int) store.videos.stream().filter(v -> v.upId == id).count();
+        return up;
     }
 
     /** 全站动态流 */

@@ -38,8 +38,13 @@ async function doCheckin() {
 
 function goSpace() {
   emit('close')
-  // 点自己的头像进的是「个人空间」，这里用第一个 UP 主当演示
-  router.push({ name: 'space', params: { id: 1000 } })
+  const id = store.user?.id
+  if (!id) {
+    store.showToast('请先登录哦~')
+    store.openLogin()
+    return
+  }
+  router.push({ name: 'space', params: { id } })
 }
 </script>
 
@@ -63,24 +68,23 @@ function goSpace() {
         </div>
         <div class="sign ellipsis-2">{{ user.sign || '这个人很懒，什么都没写~' }}</div>
         <div class="badges">
-          <span class="medal">🏅 {{ user.medal || '见习会员' }}</span>
+          <span class="medal"><AiIcon><Medal /></AiIcon> {{ user.medal || '见习会员' }}</span>
           <span class="join">加入 {{ user.joinDays }} 天</span>
         </div>
       </div>
     </div>
 
-    <!-- 经验进度：用 Element Plus 的 Progress，颜色改成 B 站粉 -->
+    <!-- 经验进度：用自研的 AiProgress，填充色走品牌渐变 -->
     <div class="exp-block">
       <div class="exp-head">
         <span class="lv">Lv{{ user.level }}</span>
         <span class="exp-text">{{ user.exp }} / {{ user.expMax }} 经验</span>
         <span class="exp-left">还差 {{ expLeft }} 升级</span>
       </div>
-      <el-progress
+      <AiProgress
         :percentage="expPercent"
-        :stroke-width="8"
+        :stroke-width="7"
         :show-text="false"
-        color="#fb7299"
         class="exp-progress"
       />
     </div>
@@ -107,16 +111,17 @@ function goSpace() {
 
     <div class="actions">
       <button class="btn btn-primary btn-round act" @click="store.openProfile(); emit('close')">
-        ✏️ 编辑资料
+        <AiIcon><Edit /></AiIcon> 编辑资料
       </button>
-      <button class="btn btn-round act" @click="goSpace">🏠 个人空间</button>
+      <button class="btn btn-round act" @click="goSpace"><AiIcon><HomeFilled /></AiIcon> 个人空间</button>
       <button
         class="btn btn-round act checkin"
         :class="{ done: user.checkedToday }"
         :disabled="user.checkedToday || checkinLoading"
         @click="doCheckin"
       >
-        {{ user.checkedToday ? '✅ 今日已签到' : checkinLoading ? '签到中...' : '📅 每日签到 +10' }}
+        <AiIcon><CircleCheck v-if="user.checkedToday" /><Calendar v-else /></AiIcon>
+        {{ user.checkedToday ? '今日已签到' : checkinLoading ? '签到中...' : '每日签到 +10' }}
       </button>
     </div>
   </div>
@@ -145,7 +150,7 @@ function goSpace() {
   gap: 14px;
   align-items: flex-start;
   padding-bottom: 14px;
-  background: radial-gradient(circle at 12% 0%, #fff0f5, transparent 60%);
+  background: radial-gradient(circle at 12% 0%, var(--brand-50), transparent 60%);
 }
 
 .avatar-wrap {
@@ -173,7 +178,7 @@ function goSpace() {
 .vip {
   font-size: 11px;
   color: #fff;
-  background: linear-gradient(90deg, #ff8fb1, #fb7299);
+  background: var(--grad-brand);
   padding: 1px 6px;
   border-radius: 4px;
   white-space: nowrap;
@@ -199,7 +204,7 @@ function goSpace() {
 
 .medal {
   font-size: 11px;
-  color: #e08800;
+  color: var(--gold-600);
   background: #fff7e6;
   padding: 1px 6px;
   border-radius: 4px;
@@ -226,7 +231,7 @@ function goSpace() {
 
 .lv {
   color: #fff;
-  background: linear-gradient(135deg, #ff9ab8, #fb7299);
+  background: var(--grad-level);
   border-radius: 4px;
   padding: 0 6px;
   font-weight: 700;
@@ -246,16 +251,17 @@ function goSpace() {
   margin-top: 2px;
 }
 
-/* 把 Element Plus 进度条的底色换成更浅的灰 */
-.exp-progress :deep(.el-progress-bar__outer) {
-  background: #f1f2f3;
+/* 经验条：轨道压成很浅的灰，填充用横向品牌渐变。
+   注意选择器要对准 AiProgress 自己的类名（.ai-progress-*），
+   以前这里是 .el-progress-bar__*，换组件之后就一直是空转的死样式。 */
+.exp-progress :deep(.ai-progress-track) {
+  background: var(--surface-sunken);
   border-radius: 999px;
 }
 
-.exp-progress :deep(.el-progress-bar__inner) {
-  background: linear-gradient(90deg, #ffd0e0, #fb7299 60%, #ff8fb1);
+.exp-progress :deep(.ai-progress-fill) {
+  background: var(--grad-fill);
   border-radius: 999px;
-  transition: width 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 /* 统计 */
@@ -264,8 +270,8 @@ function goSpace() {
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 12px 0;
-  border-top: 1px solid #f1f2f3;
-  border-bottom: 1px solid #f1f2f3;
+  border-top: 1px solid var(--surface-sunken);
+  border-bottom: 1px solid var(--surface-sunken);
   margin-bottom: 12px;
 }
 
@@ -281,7 +287,7 @@ function goSpace() {
 }
 
 .stat:hover {
-  background: #fff5f8;
+  background: var(--brand-50);
   transform: translateY(-2px);
 }
 
@@ -313,7 +319,7 @@ function goSpace() {
 }
 
 .act.checkin.done {
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   color: var(--text-3);
   cursor: default;
 }

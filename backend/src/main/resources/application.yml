@@ -4,27 +4,94 @@ server:
     encoding:
       charset: UTF-8
       force: true
+  tomcat:
+    # 投稿可能上传较大的视频文件
+    max-http-form-post-size: 320MB
+    connection-timeout: 60s
 
 spring:
   application:
     name: bili-web
+  # 本地环境变量：把 .env.example 复制成 .env（已被 .gitignore 忽略），
+  # 数据库密码 / 邮箱授权码等敏感信息只放这里或系统环境变量，不写死在配置文件里。
+  config:
+    import: optional:file:./.env[.properties]
   web:
     resources:
       # 前端打包后的静态文件放在 classpath:/static 下
       static-locations: classpath:/static/
   servlet:
     multipart:
-      # 头像上传大小限制（前端也做了 5MB 校验）
-      max-file-size: 5MB
-      max-request-size: 6MB
+      max-file-size: 300MB
+      max-request-size: 320MB
   mvc:
     problemdetails:
       enabled: false
 
-# 用户资料 / 上传的头像保存在这个目录（相对项目根目录）
+  # ================= 本机 MySQL =================
+  # 老库 bili_clone 已存在，这里只做连接 + 增量迁移，不会删库删表。
+  # 数据库没启动时不会导致服务启动失败（initialization-fail-timeout=-1），会自动进入内存兜底模式，
+  # 之后检测到数据库恢复会自动重试并切回 MySQL 模式，无需重启。
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:bili_clone}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&createDatabaseIfNotExist=true
+    username: ${DB_USER:root}
+    # 敏感信息：只从 .env / 环境变量读取，不提供明文默认值
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: bili-pool
+      maximum-pool-size: 12
+      minimum-idle: 2
+      connection-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      initialization-fail-timeout: -1
+      connection-test-query: SELECT 1
+
+  # 邮件：默认不配置（开发环境验证码打印到控制台）。
+  # 需要真发邮件时把 host/username/password 填上，并把 bili.auth.dev-mode 改成 false。
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+
+# 用户资料 / 上传的头像 / 视频 / 封面都放在这个目录。
+# 推荐在 .env 里用绝对路径指定（BILI_UPLOAD_DIR=D:/bilibili-clone/uploads），
+# 避免从项目根 / backend 不同目录启动时各用一份 uploads；留空时由 UploadPaths 自动推断。
 bili:
-  upload-dir: ./uploads
+  upload-dir: ${BILI_UPLOAD_DIR:./uploads}
+  # FFmpeg 可执行文件路径；留空则依次尝试 PATH 里的 ffmpeg 与 python 的 imageio-ffmpeg
+  ffmpeg-path: ${FFMPEG_PATH:}
+  auth:
+    # true = 开发环境：邮箱验证码打印到控制台并在接口里返回 devCode；生产请改成 false
+    dev-mode: ${BILI_DEV_MODE:true}
+    # 二维码有效期（秒）
+    qr-ttl: 120
+    # 二维码里写入的站点地址，留空自动用请求的 Host 推断
+    qr-base-url: ${BILI_QR_BASE_URL:}
+  media:
+    # 启动时自动扫描 uploads/videos 目录：绑定真实视频 + FFmpeg 截帧生成封面
+    auto-scan: true
+    # 没有视频文件时，是否自动用 FFmpeg 生成一批演示视频（首次启动约 20~40 秒，已存在则跳过）
+    generate-samples: ${BILI_GENERATE_SAMPLES:true}
+    # 截帧位置（秒）
+    cover-second: 3
+  seed:
+    # 空库启动时，是否把内置的演示数据写入 MySQL
+    enabled: true
 
 logging:
   level:
     root: info
+    com.bili.demo: info
+    com.zaxxer.hikari: warn

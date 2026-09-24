@@ -46,7 +46,8 @@ try {
   await browser.reload(2600)
   await browser.click('.avatar-hit')
   await sleep(700)
-  await browser.click('.modal .primary')
+  // 登录弹窗默认停在「扫码登录」标签页，演示入口是右侧常驻的 .demo-btn
+  await browser.click('.modal .demo-btn')
   await sleep(1400)
   const loggedIn = await browser.eval(`(JSON.parse(localStorage.getItem('bili-user')||'null')||{}).name || ''`)
   check('登录成功', !!loggedIn, `当前昵称：${loggedIn}`)
@@ -85,7 +86,7 @@ try {
 
   // 经验条存在并且有宽度
   const expWidth = await browser.eval(
-    `(() => { const el = document.querySelector('.user-card .el-progress-bar__inner'); return el ? Math.round(el.getBoundingClientRect().width) : 0; })()`
+    `(() => { const el = document.querySelector('.user-card .ai-progress-fill'); return el ? Math.round(el.getBoundingClientRect().width) : 0; })()`
   )
   check('经验进度条正常渲染', expWidth > 10, `进度条宽度 ${expWidth}px`)
 
@@ -114,7 +115,7 @@ try {
   const modalOpen = await browser.eval(`!!document.querySelector('.modal .title')`)
   check('打开「编辑资料」弹窗', !!modalOpen)
 
-  const newName = '哔哩哔哩' + Math.floor(Math.random() * 900 + 100)
+  const newName = 'a哩a哩' + Math.floor(Math.random() * 900 + 100)
   await browser.type('.modal .field input', newName)
   await sleep(300)
   const previewName = await browser.eval(`(document.querySelector('.pv-name')||{}).innerText || ''`)

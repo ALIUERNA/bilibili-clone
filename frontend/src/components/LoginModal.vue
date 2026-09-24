@@ -1,88 +1,184 @@
 <script setup>
-import { ref } from 'vue'
-import { useUserStore } from '../stores/user'
-
 /**
- * 登录弹窗。
- * 外壳用 Element Plus 的 Dialog（自带遮罩、ESC 关闭、焦点管理、过渡动画），
- * 里面的样式依然是照着 B 站扫码登录做的。
+ * 登录弹窗（AiModal 外壳 + a哩a哩 自己的内容）。
+ * 三种登录方式都在这里：账号密码 + 图形验证码 / 邮箱验证码 / 扫码登录。
  */
-defineEmits(['close'])
-const userStore = useUserStore()
-const loading = ref(false)
-const tab = ref('qr')
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
+import CaptchaImage from './CaptchaImage.vue'
+import EmailCodeField from './EmailCodeField.vue'
+import QrLoginPanel from './QrLoginPanel.vue'
 
-// 生成一个「像二维码」的点阵，纯装饰用
-const cells = Array.from({ length: 21 * 21 }, (_, i) => {
-  const row = Math.floor(i / 21)
-  const col = i % 21
-  const inFinder = (r, c) =>
-    (r < 7 && c < 7) || (r < 7 && c > 13) || (r > 13 && c < 7)
-  return inFinder(row, col) ? true : (row * 31 + col * 17) % 3 === 0
+const emit = defineEmits(['close'])
+const router = useRouter()
+const userStore = useUserStore()
+
+const tab = ref('qr')
+const loading = ref(false)
+const message = ref('')
+const captchaRef = ref(null)
+
+const form = reactive({
+  account: '',
+  password: '',
+  captchaCode: '',
+  captchaKey: '',
+  email: '',
+  emailCode: ''
 })
 
-async function doLogin() {
+const devMode = computed(() => userStore.authStatus?.devMode !== false)
+
+/** 演示账号一键登录只在开发模式出现：标准模式下走真实登录方式 */
+const isDev = import.meta.env.DEV
+
+const close = () => {
+  userStore.closeLogin()
+  emit('close')
+}
+
+async function doPasswordLogin() {
+  message.value = ''
+  if (!form.account || !form.password) {
+    message.value = '请输入账号和密码'
+    return
+  }
+  if (!form.captchaCode) {
+    message.value = '请输入图形验证码'
+    return
+  }
   loading.value = true
   try {
-    await userStore.login()
+    const res = await userStore.loginWithPassword(form)
+    if (!res.success) {
+      message.value = res.message || '登录失败'
+      if (res.needCaptcha && captchaRef.value) captchaRef.value.refresh()
+    } else {
+      close()
+      goRedirect()
+    }
+  } catch (e) {
+    message.value = '网络异常，请稍后再试'
   } finally {
     loading.value = false
   }
 }
 
-const close = () => userStore.loginVisible = false
+async function doEmailLogin() {
+  message.value = ''
+  if (!form.email || !form.emailCode) {
+    message.value = '请输入邮箱和验证码'
+    return
+  }
+  loading.value = true
+  try {
+    const res = await userStore.loginWithEmail({ email: form.email, code: form.emailCode })
+    if (!res.success) {
+      message.value = res.message || '登录失败'
+    } else {
+      close()
+      goRedirect()
+    }
+  } catch (e) {
+    message.value = '网络异常，请稍后再试'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onQrSuccess(payload) {
+  await userStore.loginWithQr(payload)
+  close()
+  goRedirect()
+}
+
+/** 登录成功后跳转：优先回到调用登录的页面 */
+function goRedirect() {
+  const redirect = userStore.loginRedirect
+  if (!redirect) return
+  userStore.loginRedirect = ''
+  const path = redirect.startsWith('#') ? redirect.slice(1) : redirect
+  router.push(path || '/')
+}
+
+async function demoLogin() {
+  loading.value = true
+  try {
+    await userStore.login()
+    close()
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => userStore.loadAuthStatus())
 </script>
 
 <template>
-  <el-dialog
-    :model-value="true"
-    class="modal"
-    width="720px"
-    align-center
-    append-to-body
-    :show-close="false"
-    :close-on-click-modal="true"
-    @close="close"
-    @update:model-value="(v) => !v && close()"
-  >
+  <AiModal class="modal" :width="760" :show-close="false" @close="close">
     <div class="login-body">
       <div class="left">
         <div class="title">
-          <span class="logo">哔哩哔哩</span>
+          <span class="logo">a哩a哩</span>
           <span class="sub">登录</span>
+          <button class="close-btn" title="关闭" @click="close">
+            <AiIcon><Close /></AiIcon>
+          </button>
         </div>
 
         <div class="tabs">
           <button :class="{ on: tab === 'qr' }" @click="tab = 'qr'">扫码登录</button>
-          <button :class="{ on: tab === 'sms' }" @click="tab = 'sms'">短信登录</button>
+          <button :class="{ on: tab === 'password' }" @click="tab = 'password'">密码登录</button>
+          <button :class="{ on: tab === 'email' }" @click="tab = 'email'">邮箱登录</button>
         </div>
 
-        <div v-if="tab === 'qr'" class="qr-area">
-          <div class="qr">
-            <div class="qr-grid">
-              <span v-for="(on, i) in cells" :key="i" :class="{ on }"></span>
-            </div>
-            <div class="qr-logo">bili</div>
-          </div>
-          <p class="tip">请使用「哔哩哔哩客户端」扫码登录</p>
-          <p class="tip small">（演示项目：二维码是画出来的，直接点下面的按钮即可登录）</p>
+        <!-- 扫码登录 -->
+        <div v-if="tab === 'qr'" class="panel">
+          <QrLoginPanel @success="onQrSuccess" />
         </div>
 
-        <div v-else class="sms-area">
-          <div class="field">
-            <span class="prefix">+86</span>
-            <input type="text" placeholder="请输入手机号" value="138 0000 0000" readonly />
+        <!-- 密码登录 -->
+        <form v-else-if="tab === 'password'" class="panel" @submit.prevent="doPasswordLogin">
+          <input v-model.trim="form.account" type="text" placeholder="请输入账号 / 邮箱" autocomplete="username" />
+          <input v-model="form.password" type="password" placeholder="请输入密码" autocomplete="current-password" />
+          <CaptchaImage
+            ref="captchaRef"
+            v-model="form.captchaCode"
+            v-model:captcha-key="form.captchaKey"
+            purpose="LOGIN"
+            @submit="doPasswordLogin"
+          />
+          <button class="primary" type="submit" :disabled="loading">
+            {{ loading ? '登录中…' : '登 录' }}
+          </button>
+          <div class="links">
+            <router-link to="/register" @click="close">注册账号</router-link>
+            <span>|</span>
+            <router-link to="/forgot" @click="close">忘记密码</router-link>
+            <template v-if="isDev">
+              <span>|</span>
+              <button type="button" class="link-btn" @click="demoLogin">一键体验</button>
+            </template>
           </div>
-          <div class="field">
-            <input type="text" placeholder="请输入验证码" value="123456" readonly />
-            <button class="code-btn">获取验证码</button>
-          </div>
-          <p class="tip small">演示项目：验证码已自动填好</p>
-        </div>
+        </form>
 
-        <button class="primary" :disabled="loading" @click="doLogin">
-          {{ loading ? '登录中...' : '一键登录' }}
-        </button>
+        <!-- 邮箱登录 -->
+        <form v-else class="panel" @submit.prevent="doEmailLogin">
+          <EmailCodeField
+            v-model:email="form.email"
+            v-model="form.emailCode"
+            purpose="LOGIN"
+            :dev-mode="devMode"
+            @submit="doEmailLogin"
+          />
+          <button class="primary" type="submit" :disabled="loading">
+            {{ loading ? '登录中…' : '登录 / 注册' }}
+          </button>
+          <p class="tip">邮箱验证通过后，没有账号会自动创建。</p>
+        </form>
+
+        <p v-if="message" class="error">{{ message }}</p>
 
         <div class="agreement">
           登录即代表同意 <a href="javascript:void(0)">用户协议</a> 和
@@ -91,41 +187,34 @@ const close = () => userStore.loginVisible = false
       </div>
 
       <div class="right">
-        <div class="art">📺</div>
-        <h3>欢迎来到哔哩哔哩</h3>
+        <div class="art"><AiIcon :size="46"><Monitor /></AiIcon></div>
+        <h3>欢迎来到a哩a哩</h3>
         <p>一起看番、一起追更、一起干杯</p>
         <div class="tags">
           <span>弹幕</span><span>追番</span><span>三连</span>
         </div>
+
+
+        <!-- 演示入口：开发模式下放在右栏，切到哪个标签页都能一键进去 -->
+        <button v-if="isDev" class="demo-btn" type="button" :disabled="loading" @click="demoLogin">
+          <AiIcon :size="15"><Lightning /></AiIcon>
+          {{ loading ? '正在进入…' : '一键体验演示账号' }}
+        </button>
+        <p v-if="isDev" class="demo-hint">免注册，直接进站体验</p>
       </div>
     </div>
-  </el-dialog>
+  </AiModal>
 </template>
 
 <style scoped>
-/* 把 Element Plus 弹窗自带的内边距去掉，换成我们自己的两栏布局 */
-:deep(.el-dialog) {
-  border-radius: 12px;
-  overflow: hidden;
-  padding: 0;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-:deep(.el-dialog__header) {
-  display: none;
-}
-
-:deep(.el-dialog__body) {
-  padding: 0;
-}
-
 .login-body {
   display: flex;
 }
 
 .left {
   flex: 1;
-  padding: 26px 30px 24px;
+  min-width: 0;
+  padding: 24px 30px 22px;
 }
 
 .title {
@@ -145,10 +234,22 @@ const close = () => userStore.loginVisible = false
   color: var(--text-2);
 }
 
+.close-btn {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+}
+
+.close-btn:hover {
+  color: var(--bili-pink);
+}
+
 .tabs {
   display: flex;
-  gap: 20px;
-  margin: 18px 0 16px;
+  gap: 18px;
+  margin: 16px 0 16px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -158,7 +259,6 @@ const close = () => userStore.loginVisible = false
   color: var(--text-2);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  transition: color 0.2s;
 }
 
 .tabs button.on {
@@ -167,130 +267,126 @@ const close = () => userStore.loginVisible = false
   font-weight: 600;
 }
 
-.qr-area {
-  text-align: center;
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.qr {
-  position: relative;
-  width: 168px;
-  height: 168px;
-  margin: 6px auto 10px;
+.panel > input {
+  height: 42px;
+  padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px;
-  background: #fff;
 }
 
-.qr-grid {
-  display: grid;
-  grid-template-columns: repeat(21, 1fr);
-  gap: 1px;
-  width: 100%;
-  height: 100%;
-}
-
-.qr-grid span {
-  background: transparent;
-  border-radius: 1px;
-}
-
-.qr-grid span.on {
-  background: #1d1d1f;
-}
-
-.qr-logo {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--bili-pink);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 3px solid #fff;
-}
-
-.tip {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--text-2);
-}
-
-.tip.small {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.sms-area .field {
-  display: flex;
-  align-items: center;
-  height: 42px;
-  border-radius: 8px;
-  background: #f4f5f7;
-  padding: 0 12px;
-  margin-bottom: 12px;
-}
-
-.sms-area .prefix {
-  color: var(--text-2);
-  margin-right: 10px;
-}
-
-.sms-area input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  color: var(--text-1);
-}
-
-.code-btn {
-  color: var(--bili-blue);
-  font-size: 13px;
+.panel > input:focus {
+  border-color: var(--bili-pink);
+  box-shadow: 0 0 0 3px rgba(110, 86, 248, 0.12);
 }
 
 .primary {
-  width: 100%;
   height: 42px;
-  margin-top: 16px;
   border-radius: 8px;
   background: var(--bili-pink);
   color: #fff;
   font-size: 15px;
   font-weight: 600;
-  transition: background 0.2s, transform 0.2s;
 }
 
 .primary:hover:not(:disabled) {
   background: var(--bili-pink-hover);
 }
 
-.primary:active:not(:disabled) {
-  transform: scale(0.98);
+.primary:disabled {
+  opacity: 0.65;
 }
 
-.primary:disabled {
-  opacity: 0.7;
-  cursor: default;
+.links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.links a {
+  color: var(--bili-blue);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--bili-blue);
+  font-size: 13px;
+  padding: 0;
+}
+
+.tip {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--rose-500);
+  background: var(--rose-50);
+  border: 1px solid var(--rose-200);
+  border-radius: 8px;
+  padding: 8px 12px;
 }
 
 .agreement {
-  margin-top: 12px;
+  margin-top: 16px;
   font-size: 12px;
   color: var(--text-3);
-  text-align: center;
 }
 
 .agreement a {
   color: var(--bili-blue);
 }
 
+.demo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  margin-top: 18px;
+  padding: 0 18px;
+  border-radius: var(--r-full);
+  background: var(--grad-brand);
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--sd-brand);
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base),
+    opacity var(--dur-fast);
+}
+
+.demo-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(110, 86, 248, 0.34);
+}
+
+.demo-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.demo-hint {
+  margin-top: 8px !important;
+  font-size: var(--fs-xs) !important;
+  color: var(--ink-4) !important;
+}
+
 .right {
-  width: 250px;
-  background: linear-gradient(160deg, #ffe3ec, #d8f1ff);
-  padding: 30px 22px;
+  width: 260px;
+  flex-shrink: 0;
+  padding: 30px 24px;
+  background: linear-gradient(160deg, var(--brand-50), var(--cyan-50));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -298,49 +394,41 @@ const close = () => userStore.loginVisible = false
   text-align: center;
 }
 
-.right .art {
-  font-size: 56px;
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+.art {
+  font-size: 46px;
 }
 
 .right h3 {
-  margin: 14px 0 6px;
-  font-size: 17px;
-  color: #33384d;
+  margin: 12px 0 8px;
+  font-size: 16px;
 }
 
 .right p {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-2);
 }
 
 .tags {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .tags span {
-  font-size: 11px;
-  color: #6b7280;
-  background: rgba(255, 255, 255, 0.7);
+  padding: 3px 10px;
   border-radius: 999px;
-  padding: 2px 10px;
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  color: var(--text-2);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .right {
     display: none;
+  }
+
+  .left {
+    padding: 20px 18px;
   }
 }
 </style>

@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import { api } from '../api'
 import { useUserStore } from '../stores/user'
+import AiLogo from '../ui/AiLogo.vue'
 import UserAvatar from './UserAvatar.vue'
 import UserHoverCard from './UserHoverCard.vue'
 
@@ -19,6 +20,10 @@ const showUserMenu = ref(false)
 const navs = [
   { name: '首页', to: '/' },
   { name: '番剧', to: '/bangumi' },
+  { name: '游戏', to: '/node/game' },
+  { name: '直播', to: '/live' },
+  { name: '专栏', to: '/column' },
+  { name: '社区中心', to: '/community' },
   { name: '排行榜', to: '/ranking' },
   { name: '动态', to: '/dynamic' }
 ]
@@ -34,7 +39,20 @@ function onAvatarClick() {
 
 function goSpace() {
   showUserMenu.value = false
-  router.push({ name: 'space', params: { id: 1000 } })
+  const id = userStore.user?.id
+  if (!id) {
+    userStore.showToast('请先登录哦~')
+    userStore.openLogin()
+    return
+  }
+  router.push({ name: 'space', params: { id } })
+}
+
+/** 个人中心各标签页 */
+function goUserCenter(tab = 'overview') {
+  showUserMenu.value = false
+  if (!userStore.requireLogin(`/user/${tab}`)) return
+  router.push(`/user/${tab}`)
 }
 
 function openProfile() {
@@ -42,9 +60,10 @@ function openProfile() {
   userStore.openProfile()
 }
 
-function logout() {
+async function logout() {
   showUserMenu.value = false
-  userStore.logout()
+  await userStore.logout()
+  router.push('/')
 }
 
 // ---------- 搜索联想（用 VueUse 的防抖，省掉手写 setTimeout）----------
@@ -79,9 +98,8 @@ function pickSuggest(text) {
 }
 
 function goUpload() {
-  if (userStore.requireLogin()) {
-    userStore.showToast('演示项目：投稿功能暂未开放 (｡･ω･｡)')
-  }
+  if (!userStore.requireLogin('/upload')) return
+  router.push('/upload')
 }
 
 onUnmounted(() => {
@@ -92,21 +110,10 @@ onUnmounted(() => {
 <template>
   <header class="topbar">
     <div class="topbar-inner">
-      <!-- 左侧：logo + 导航 -->
-      <a class="logo" href="#/" title="哔哩哔哩 (゜-゜)つロ 干杯~">
-        <span class="logo-icon">
-          <svg viewBox="0 0 100 100" width="26" height="26">
-            <rect width="100" height="100" rx="24" fill="#FB7299" />
-            <path
-              d="M30 40h40a6 6 0 0 1 6 6v22a6 6 0 0 1-6 6H30a6 6 0 0 1-6-6V46a6 6 0 0 1 6-6z"
-              fill="#fff"
-            />
-            <path d="M32 30l12 10M68 30L56 40" stroke="#fff" stroke-width="6" stroke-linecap="round" />
-            <circle cx="40" cy="55" r="4" fill="#FB7299" />
-            <circle cx="60" cy="55" r="4" fill="#FB7299" />
-          </svg>
-        </span>
-        <span class="logo-text">哔哩哔哩</span>
+      <!-- 左侧：品牌标志 + 导航 -->
+      <a class="logo" href="#/" title="a哩a哩 (゜-゜)つロ 干杯~">
+        <AiLogo class="logo-mark" :size="30" />
+        <span class="logo-text">a哩a哩</span>
       </a>
 
       <nav class="nav">
@@ -119,9 +126,19 @@ onUnmounted(() => {
         >
           {{ item.name }}
         </router-link>
-        <span class="nav-item muted" title="演示项目，未实现">直播</span>
-        <span class="nav-item muted" title="演示项目，未实现">游戏中心</span>
-        <span class="nav-item muted" title="演示项目，未实现">会员购</span>
+        <span
+          v-for="n in [
+            { name: '动画', to: '/node/anime' },
+            { name: '音乐', to: '/node/music' },
+            { name: '科技', to: '/node/tech' },
+            { name: '活动', to: '/activity' }
+          ]"
+          :key="n.to"
+          class="nav-item extra"
+          @click="$router.push(n.to)"
+        >
+          {{ n.name }}
+        </span>
       </nav>
 
       <!-- 中间：搜索框 -->
@@ -135,16 +152,13 @@ onUnmounted(() => {
             @focus="showSuggest = suggestList.length > 0"
           />
           <button class="search-btn" title="搜索" @click="doSearch()">
-            <svg viewBox="0 0 20 20" width="18" height="18">
-              <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="#fff" stroke-width="2" />
-              <path d="M13 13l4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" />
-            </svg>
+            <AiIcon color="#fff" :size="18"><Search /></AiIcon>
           </button>
         </div>
         <transition name="fade">
           <ul v-if="showSuggest && suggestList.length" class="suggest">
             <li v-for="(s, i) in suggestList" :key="i" @mousedown.prevent="pickSuggest(s)">
-              <span class="dot">🔍</span>
+              <span class="dot"><AiIcon><Search /></AiIcon></span>
               <span class="ellipsis">{{ s }}</span>
             </li>
           </ul>
@@ -153,25 +167,25 @@ onUnmounted(() => {
 
       <!-- 右侧：用户区 -->
       <div class="right">
-        <el-tooltip content="演示项目：消息中心仅作展示" placement="bottom" :show-after="400">
-          <button class="icon-btn" @click="userStore.showToast('演示项目：消息中心仅作展示~')">
-            <span class="ico">✉️</span><span class="icon-text">消息</span>
+        <el-tooltip content="消息中心" placement="bottom" :show-after="400">
+          <button class="icon-btn" @click="goUserCenter('message')">
+            <span class="ico"><AiIcon><Message /></AiIcon></span><span class="icon-text">消息</span>
           </button>
         </el-tooltip>
 
-        <el-tooltip content="演示项目：历史记录仅作展示" placement="bottom" :show-after="400">
-          <button class="icon-btn" @click="userStore.showToast('演示项目：历史记录仅作展示~')">
-            <span class="ico">🕘</span><span class="icon-text">历史</span>
+        <el-tooltip content="观看历史" placement="bottom" :show-after="400">
+          <button class="icon-btn" @click="goUserCenter('history')">
+            <span class="ico"><AiIcon><Clock /></AiIcon></span><span class="icon-text">历史</span>
           </button>
         </el-tooltip>
 
-        <el-tooltip content="演示项目：创作中心仅作展示" placement="bottom" :show-after="400">
-          <button class="icon-btn" @click="userStore.showToast('演示项目：创作中心仅作展示~')">
-            <span class="ico">✨</span><span class="icon-text">创作中心</span>
+        <el-tooltip content="我的投稿" placement="bottom" :show-after="400">
+          <button class="icon-btn" @click="goUserCenter('upload')">
+            <span class="ico"><AiIcon><MagicStick /></AiIcon></span><span class="icon-text">创作中心</span>
           </button>
         </el-tooltip>
 
-        <button class="vip-btn" @click="userStore.showToast('演示项目：大会员页面未开放~')">
+        <button class="vip-btn" @click="$router.push('/user/settings')">
           <span>大会员</span>
         </button>
 
@@ -198,7 +212,7 @@ onUnmounted(() => {
                   hover-zoom
                   ring
                 />
-                <span v-else class="avatar guest"><span>👤</span></span>
+                <span v-else class="avatar guest"><AiIcon :size="20"><User /></AiIcon></span>
               </div>
             </template>
 
@@ -220,6 +234,11 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="user-menu-body">
+                <button @click="goUserCenter('overview')">个人中心</button>
+                <button @click="goUserCenter('favorite')">我的收藏</button>
+                <button @click="goUserCenter('history')">观看历史</button>
+                <button @click="goUserCenter('upload')">我的投稿</button>
+                <button @click="goUserCenter('settings')">设置</button>
                 <button @click="goSpace">个人空间</button>
                 <button @click="openProfile">编辑资料</button>
                 <button @click="logout">退出登录</button>
@@ -236,6 +255,9 @@ onUnmounted(() => {
             </transition-group>
           </div>
         </div>
+
+        <button v-if="!userStore.isLogin" class="login-btn" @click="$router.push('/login')">登录</button>
+        <button v-if="!userStore.isLogin" class="signup-btn" @click="$router.push('/register')">注册</button>
 
         <button class="upload-btn" @click="goUpload">投稿</button>
       </div>
@@ -278,20 +300,33 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.logo-icon {
-  display: flex;
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* 悬停时标志轻轻转一下：给品牌一点点"活着"的感觉 */
+.logo-mark {
+  transition: transform 0.45s var(--ease-spring);
 }
 
-.logo:hover .logo-icon {
-  transform: rotate(-8deg) scale(1.12);
+.logo:hover .logo-mark {
+  transform: rotate(-7deg) scale(1.08);
 }
 
 .logo-text {
   font-size: 19px;
   font-weight: 700;
-  color: var(--bili-pink);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  /* 文字本身用极光渐变，和图形标志的配色呼应 */
+  background: var(--grad-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 老浏览器 / 不支持 background-clip:text 时退回品牌紫，避免文字消失 */
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .logo-text {
+    color: var(--brand-600);
+    -webkit-text-fill-color: currentColor;
+  }
 }
 
 /* ---------- 导航 ---------- */
@@ -327,7 +362,7 @@ onUnmounted(() => {
 
 .nav-item:hover {
   color: var(--bili-pink);
-  background: #fff5f8;
+  background: var(--brand-50);
   transform: translateY(-1px);
 }
 
@@ -355,14 +390,15 @@ onUnmounted(() => {
 
 .nav-item.muted:hover {
   color: var(--text-3);
-  background: #f6f7f8;
+  background: var(--surface-0);
   transform: none;
 }
 
 /* ---------- 搜索 ---------- */
 .search-wrap {
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 500px;
   margin: 0 auto;
 }
@@ -372,14 +408,14 @@ onUnmounted(() => {
   align-items: center;
   height: 40px;
   border-radius: 8px;
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   padding-left: 14px;
   transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
 .search-box:focus-within {
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(0, 174, 236, 0.35);
+  box-shadow: 0 0 0 2px rgba(18, 183, 214, 0.35);
   transform: scale(1.015);
 }
 
@@ -400,16 +436,22 @@ onUnmounted(() => {
   width: 48px;
   height: 34px;
   margin-right: 3px;
-  border-radius: 6px;
-  background: var(--bili-blue);
+  border-radius: var(--r-sm);
+  /* 搜索是顶栏里唯一的主动作，用品牌极光渐变，
+     别让天青（信息色）在这里抢走品牌记忆点 */
+  background: var(--grad-brand);
+  background-size: 160% 160%;
+  background-position: 0% 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s, transform 0.15s;
+  transition: background-position var(--dur-base) var(--ease-out), transform 0.15s,
+    box-shadow var(--dur-base);
 }
 
 .search-btn:hover {
-  background: var(--bili-blue-hover);
+  background-position: 100% 50%;
+  box-shadow: var(--sd-brand);
 }
 
 .search-btn:active {
@@ -442,7 +484,7 @@ onUnmounted(() => {
 }
 
 .suggest li:hover {
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   color: var(--bili-blue);
   padding-left: 18px;
 }
@@ -479,7 +521,7 @@ onUnmounted(() => {
 }
 
 .icon-btn:hover {
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   color: var(--bili-pink);
 }
 
@@ -497,7 +539,7 @@ onUnmounted(() => {
   height: 32px;
   padding: 0 12px;
   border-radius: 6px;
-  background: linear-gradient(90deg, #ff7fa6, #ff5c8d);
+  background: linear-gradient(90deg, var(--brand-400), var(--brand-500));
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -506,7 +548,7 @@ onUnmounted(() => {
 
 .vip-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 92, 141, 0.4);
+  box-shadow: 0 4px 12px rgba(110, 86, 248, 0.4);
   filter: brightness(1.06);
 }
 
@@ -524,7 +566,7 @@ onUnmounted(() => {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   color: var(--text-3);
   display: inline-flex;
   align-items: center;
@@ -535,7 +577,7 @@ onUnmounted(() => {
 
 .avatar.guest:hover {
   transform: scale(1.14);
-  background: #ffe9f0;
+  background: var(--brand-100);
 }
 
 .hover-card {
@@ -560,7 +602,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 14px;
-  background: linear-gradient(120deg, #fff0f5, #eef8ff);
+  background: linear-gradient(120deg, var(--brand-50), var(--cyan-50));
 }
 
 .head-text {
@@ -588,7 +630,7 @@ onUnmounted(() => {
 
 .mini-fill {
   height: 100%;
-  background: linear-gradient(90deg, #ffd0e0, #fb7299);
+  background: var(--grad-level);
   border-radius: 999px;
   transition: width 0.6s ease;
 }
@@ -614,7 +656,7 @@ onUnmounted(() => {
 }
 
 .user-menu-body button:hover {
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   color: var(--bili-pink);
   padding-left: 20px;
 }
@@ -638,10 +680,10 @@ onUnmounted(() => {
   font-weight: 700;
   color: var(--bili-pink);
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #ffd7e3;
+  border: 1px solid var(--brand-200);
   border-radius: 999px;
   padding: 2px 10px;
-  box-shadow: 0 4px 12px rgba(251, 114, 153, 0.25);
+  box-shadow: 0 4px 12px rgba(110, 86, 248, 0.25);
 }
 
 .float-enter-active {
@@ -673,7 +715,7 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at 88% 3%, rgba(251, 114, 153, 0.35), transparent 32%);
+  background: radial-gradient(circle at 88% 3%, rgba(110, 86, 248, 0.35), transparent 32%);
   animation: glow 2.6s ease-out forwards;
 }
 
@@ -703,11 +745,40 @@ onUnmounted(() => {
 .upload-btn:hover {
   background: var(--bili-pink-hover);
   transform: translateY(-1px);
-  box-shadow: 0 5px 14px rgba(251, 114, 153, 0.4);
+  box-shadow: 0 5px 14px rgba(110, 86, 248, 0.4);
 }
 
 .upload-btn:active {
   transform: scale(0.96);
+}
+
+/* ---------- 未登录时的登录 / 注册按钮 ---------- */
+.login-btn,
+.signup-btn {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.login-btn {
+  background: var(--bili-pink);
+  color: #fff;
+}
+
+.login-btn:hover {
+  background: var(--bili-pink-hover);
+}
+
+.signup-btn {
+  border: 1px solid var(--bili-pink);
+  color: var(--bili-pink);
+  background: #fff;
+}
+
+.signup-btn:hover {
+  background: var(--brand-50);
 }
 
 /* ---------- 过渡 ---------- */
@@ -735,10 +806,66 @@ onUnmounted(() => {
   transform: translateY(-6px);
 }
 
+@media (max-width: 1440px) {
+  /* 中等屏幕先收起次要导航，保证搜索框和右侧按钮不被挤出屏幕 */
+  .nav-item.extra {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) {
+  .nav {
+    display: none;
+  }
+}
+
 @media (max-width: 1100px) {
   .nav,
   .icon-btn .icon-text {
     display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .logo-text,
+  .signup-btn,
+  .vip-btn,
+  .icon-btn {
+    display: none;
+  }
+
+  .topbar-inner {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .search-wrap {
+    max-width: none;
+  }
+
+  .upload-btn {
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+
+  .avatar-hit {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 420px) {
+  .search-btn {
+    width: 38px;
+  }
+
+  .search-box {
+    padding-left: 10px;
+  }
+
+  .user-menu {
+    right: -8px;
+    max-width: calc(100vw - 24px);
   }
 }
 </style>

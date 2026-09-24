@@ -49,7 +49,7 @@ onMounted(load)
         <h1>番剧</h1>
         <p>追番、看番、补番，一起在弹幕里干杯</p>
       </div>
-      <div class="hero-emoji">📺</div>
+      <div class="hero-emoji"><AiIcon :size="60"><Monitor /></AiIcon></div>
     </section>
 
     <div class="filters">
@@ -96,7 +96,7 @@ onMounted(load)
           <h3 class="ellipsis" :title="b.title">{{ b.title }}</h3>
           <p class="bg-desc clamp-2">{{ b.desc }}</p>
           <div class="bg-meta">
-            <span class="score">⭐ {{ b.score.toFixed(1) }}</span>
+            <span class="score"><AiIcon><StarFilled /></AiIcon> {{ b.score.toFixed(1) }}</span>
             <span>{{ formatCount(b.followers) }}追番</span>
             <span class="tag">{{ b.area }}</span>
           </div>
@@ -121,7 +121,7 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(120deg, #eef3ff, #ffeef5);
+  background: linear-gradient(120deg, var(--cyan-50), var(--brand-50));
   border-radius: 12px;
   padding: 26px 32px;
   margin-bottom: 18px;
@@ -166,7 +166,7 @@ onMounted(load)
 .chip {
   padding: 4px 14px;
   border-radius: 999px;
-  background: #f4f5f7;
+  background: var(--surface-sunken);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -222,7 +222,7 @@ onMounted(load)
   position: absolute;
   left: 8px;
   top: 8px;
-  background: rgba(251, 114, 153, 0.92);
+  background: rgba(110, 86, 248, 0.92);
   color: #fff;
   font-size: 11px;
   padding: 2px 7px;
@@ -270,7 +270,7 @@ onMounted(load)
 }
 
 .score {
-  color: #ff9900;
+  color: var(--gold-500);
   font-weight: 600;
 }
 
@@ -295,7 +295,7 @@ onMounted(load)
 }
 
 .follow.on {
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   color: var(--text-2);
 }
 

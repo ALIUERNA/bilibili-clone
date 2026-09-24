@@ -23,7 +23,7 @@ function like() {
 
 function reply() {
   if (!userStore.requireLogin()) return
-  userStore.showToast('演示项目：回复功能暂未开放~')
+  userStore.showToast('回复功能暂未开放')
 }
 
 const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
@@ -44,8 +44,10 @@ const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
         <span class="dot">·</span>
         <span>{{ comment.location || '未知' }}</span>
         <span class="actions">
-          <button class="act" :class="{ on: comment.liked, pop }" @click="like">👍 {{ fmt(comment.likes) }}</button>
-          <button class="act" @click="reply">💬 回复</button>
+          <button class="act" :class="{ on: comment.liked, pop }" @click="like">
+            <AiIcon><Pointer /></AiIcon> {{ fmt(comment.likes) }}
+          </button>
+          <button class="act" @click="reply"><AiIcon><Comment /></AiIcon> 回复</button>
         </span>
       </div>
 
@@ -68,14 +70,14 @@ const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
   display: flex;
   gap: 12px;
   padding: 16px 0;
-  border-bottom: 1px solid #f1f2f3;
+  border-bottom: 1px solid var(--surface-sunken);
 }
 
 .avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #f1f2f3;
+  background: var(--surface-sunken);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -113,7 +115,7 @@ const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
 .user {
   font-size: 14px;
   font-weight: 600;
-  color: #5c6b87;
+  color: var(--ink-2);
 }
 
 .up-liked {
@@ -123,7 +125,7 @@ const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
 .level {
   font-size: 11px;
   color: #fff;
-  background: linear-gradient(90deg, #ffb3d1, #fb7299);
+  background: var(--grad-brand);
   border-radius: 3px;
   padding: 0 4px;
 }
@@ -169,7 +171,7 @@ const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
 
 .replies {
   margin-top: 10px;
-  background: #f7f8fa;
+  background: var(--surface-0);
   border-radius: 8px;
   padding: 10px 12px;
 }
@@ -181,7 +183,7 @@ const fmt = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n))
 }
 
 .r-user {
-  color: #5c6b87;
+  color: var(--ink-2);
   font-weight: 600;
 }
 

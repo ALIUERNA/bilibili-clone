@@ -59,9 +59,11 @@ describe('coverStyle', () => {
     expect(style.backgroundImage).toContain('#000000')
   })
 
-  it('没有颜色时用默认粉色兜底', () => {
+  it('没有颜色时用品牌极光色兜底', () => {
     const style = coverStyle({})
-    expect(style.backgroundImage).toContain('#FB7299')
+    // 兜底用的是品牌紫 -> 珊瑚橙，不再是哔哩哔哩粉
+    expect(style.backgroundImage).toContain('#6E56F8')
+    expect(style.backgroundImage).toContain('#FF7A45')
   })
 })
 
